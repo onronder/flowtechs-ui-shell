@@ -1,9 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import type { Source, SourceType } from '@/integrations/supabase/client';
+import { supabase, getMetadataValue, type ShopifyApiVersion, type RateLimitInfo } from '@/integrations/supabase/client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -54,7 +52,7 @@ export default function SourceForm() {
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<null | 'success' | 'error'>(null);
   const [connectionMessage, setConnectionMessage] = useState('');
-  const [rateLimitInfo, setRateLimitInfo] = useState<null | { available: number, total: number }>(null);
+  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { id } = useParams();
@@ -120,11 +118,13 @@ export default function SourceForm() {
         api_key: credentials.api_key || '',
         api_secret: credentials.api_secret || '',
         access_token: credentials.access_token || '',
-        api_version: sourceData.api_version || '2024-04',
-        connection_timeout: metadata.connection_timeout || '30',
-        max_retries: metadata.max_retries || '3',
-        throttle_rate: metadata.throttle_rate || '2',
-        custom_headers: metadata.custom_headers ? JSON.stringify(metadata.custom_headers, null, 2) : '',
+        api_version: (sourceData.api_version as ShopifyApiVersion) || '2024-04',
+        connection_timeout: getMetadataValue(metadata, 'connection_timeout', '30'),
+        max_retries: getMetadataValue(metadata, 'max_retries', '3'),
+        throttle_rate: getMetadataValue(metadata, 'throttle_rate', '2'),
+        custom_headers: getMetadataValue(metadata, 'custom_headers', null) 
+          ? JSON.stringify(getMetadataValue(metadata, 'custom_headers', {}), null, 2) 
+          : '',
       });
       
       // Check connection status
@@ -137,8 +137,9 @@ export default function SourceForm() {
       }
       
       // Get rate limit info
-      if (metadata.rate_limits) {
-        setRateLimitInfo(metadata.rate_limits);
+      const rateLimits = getMetadataValue(metadata, 'rate_limits', null);
+      if (rateLimits) {
+        setRateLimitInfo(rateLimits as RateLimitInfo);
       }
       
     } catch (error) {
@@ -191,7 +192,7 @@ export default function SourceForm() {
         setConnectionMessage(data.message || 'Connection successful');
         
         if (data.rate_limits) {
-          setRateLimitInfo(data.rate_limits);
+          setRateLimitInfo(data.rate_limits as RateLimitInfo);
         }
         
         toast({

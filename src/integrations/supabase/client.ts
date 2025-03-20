@@ -16,6 +16,18 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
 export type SourceType = 'shopify' | 'amazon' | 'ebay' | 'etsy' | 'woocommerce';
 export type QueryType = 'product' | 'order' | 'customer' | 'inventory' | 'collection' | 'custom';
 export type ConnectionStatus = 'connected' | 'disconnected' | 'error';
+export type ShopifyApiVersion = '2023-07' | '2023-10' | '2024-01' | '2024-04';
+
+// Helper to safely access Json metadata properties
+export function getMetadataValue<T>(metadata: Record<string, any> | Json | null, key: string, defaultValue: T): T {
+  if (!metadata) return defaultValue;
+  
+  if (typeof metadata === 'object' && metadata !== null && !Array.isArray(metadata)) {
+    return (metadata as Record<string, any>)[key] as T ?? defaultValue;
+  }
+  
+  return defaultValue;
+}
 
 // Helper types for source data
 export interface Source {
@@ -26,7 +38,7 @@ export interface Source {
   type: SourceType;
   store_name: string | null;
   access_token: string | null;
-  api_version: string | null;
+  api_version: ShopifyApiVersion | string | null;
   client_id: string | null;
   connection_status: ConnectionStatus;
   last_connected_at: string | null;
@@ -69,4 +81,10 @@ export interface Dataset {
   last_completed_run: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Type for rate limit information
+export interface RateLimitInfo {
+  available: number;
+  total: number;
 }
