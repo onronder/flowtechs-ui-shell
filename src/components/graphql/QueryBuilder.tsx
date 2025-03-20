@@ -4,9 +4,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Badge
-} from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -14,9 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-} from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 import {
   Tabs,
   TabsContent,
@@ -39,9 +35,23 @@ import QueryEditor from "./QueryEditor";
 import SaveTemplateDialog from "./SaveTemplateDialog";
 import { TypeField, QueryVariable, QueryTemplate, QueryResult } from "./types";
 import { convertSchemaTypeToFields, generateGraphQLQuery } from "./utils/queryUtils";
+import { Json } from "@/integrations/supabase/types";
 
 interface QueryBuilderProps {
   sourceId: string;
+}
+
+// Helper for type safety when dealing with JSON
+interface QueryDetailsJson {
+  query: string;
+  variables: Array<{
+    name: string;
+    type: string;
+    defaultValue: string;
+  }>;
+  complexity: number;
+  execution_count?: number;
+  average_execution_time?: number;
 }
 
 const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
@@ -78,19 +88,23 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
         if (!data) return;
         
         // Map the data to our QueryTemplate interface
-        const mappedTemplates = data.map(item => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          query: item.query_details?.query || "",
-          variables: item.query_details?.variables || [],
-          complexity: item.query_details?.complexity || 0,
-          source_id: sourceId,
-          created_at: item.created_at,
-          updated_at: item.updated_at,
-          execution_count: item.query_details?.execution_count,
-          average_execution_time: item.query_details?.average_execution_time
-        })) as QueryTemplate[];
+        const mappedTemplates = data.map(item => {
+          const queryDetails = item.query_details as unknown as QueryDetailsJson;
+          
+          return {
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            query: queryDetails?.query || "",
+            variables: queryDetails?.variables || [],
+            complexity: queryDetails?.complexity || 0,
+            source_id: sourceId,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            execution_count: queryDetails?.execution_count,
+            average_execution_time: queryDetails?.average_execution_time
+          } as QueryTemplate;
+        });
         
         setTemplates(mappedTemplates);
       } catch (error) {
@@ -169,16 +183,19 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
 
   const saveTemplate = async (data: any) => {
     try {
+      // Create the template data with properly typed query_details
+      const queryDetailsObject = {
+        query: generatedQuery,
+        variables: queryVariables,
+        complexity: complexity
+      };
+      
       const templateData = {
         name: data.templateName,
         description: data.templateDescription,
         query_type: "custom" as const,
         query_name: queryName,
-        query_details: {
-          query: generatedQuery,
-          variables: queryVariables,
-          complexity: complexity
-        },
+        query_details: queryDetailsObject as unknown as Json,
         source_id: sourceId
       };
 
@@ -192,13 +209,16 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
       
       if (!savedTemplate) throw new Error("No template data returned from insert");
       
+      // Cast the saved template to our template interface
+      const queryDetails = savedTemplate.query_details as unknown as QueryDetailsJson;
+      
       const mappedTemplate: QueryTemplate = {
         id: savedTemplate.id,
         name: savedTemplate.name,
         description: savedTemplate.description,
-        query: savedTemplate.query_details?.query || "",
-        variables: savedTemplate.query_details?.variables || [],
-        complexity: savedTemplate.query_details?.complexity || 0,
+        query: queryDetails?.query || "",
+        variables: queryDetails?.variables || [],
+        complexity: queryDetails?.complexity || 0,
         source_id: sourceId,
         created_at: savedTemplate.created_at,
         updated_at: savedTemplate.updated_at
