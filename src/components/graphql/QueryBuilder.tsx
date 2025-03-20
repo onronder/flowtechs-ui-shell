@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -33,25 +32,12 @@ import QueryTemplates from "./QueryTemplates";
 import QueryResults from "./QueryResults";
 import QueryEditor from "./QueryEditor";
 import SaveTemplateDialog from "./SaveTemplateDialog";
-import { TypeField, QueryVariable, QueryTemplate, QueryResult } from "./types";
+import { TypeField, QueryVariable, QueryTemplate, QueryResult, QueryDetailsJson } from "./types";
 import { convertSchemaTypeToFields, generateGraphQLQuery } from "./utils/queryUtils";
 import { Json } from "@/integrations/supabase/types";
 
 interface QueryBuilderProps {
   sourceId: string;
-}
-
-// Helper for type safety when dealing with JSON
-interface QueryDetailsJson {
-  query: string;
-  variables: Array<{
-    name: string;
-    type: string;
-    defaultValue: string;
-  }>;
-  complexity: number;
-  execution_count?: number;
-  average_execution_time?: number;
 }
 
 const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
@@ -71,7 +57,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
   const [executionTime, setExecutionTime] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
-  // Fetch saved templates
   useEffect(() => {
     const fetchTemplates = async () => {
       if (!sourceId) return;
@@ -87,7 +72,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
         
         if (!data) return;
         
-        // Map the data to our QueryTemplate interface
         const mappedTemplates = data.map(item => {
           const queryDetails = item.query_details as unknown as QueryDetailsJson;
           
@@ -120,7 +104,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
     fetchTemplates();
   }, [sourceId, toast]);
 
-  // Generate GraphQL query based on selected fields
   useEffect(() => {
     if (fields.length === 0) return;
     
@@ -142,14 +125,12 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
   const handleTypeSelect = (type: any) => {
     setSelectedType(type);
     
-    // Convert type fields to our internal format
     if (type.fields) {
       setFields(convertSchemaTypeToFields(type));
     }
   };
 
   const handleFieldSelect = (schemaField: any, parentType: any) => {
-    // Update the selectedFields tracking
     setSelectedFields(prev => {
       const fieldSet = prev[parentType.name] || new Set();
       if (fieldSet.has(schemaField.name)) {
@@ -160,7 +141,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
       return { ...prev, [parentType.name]: fieldSet };
     });
     
-    // If this is the root type, update our fields
     if (parentType.name === selectedType?.name) {
       setFields(prev => {
         return prev.map(field => {
@@ -183,8 +163,7 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
 
   const saveTemplate = async (data: any) => {
     try {
-      // Create the template data with properly typed query_details
-      const queryDetailsObject = {
+      const queryDetailsObject: QueryDetailsJson = {
         query: generatedQuery,
         variables: queryVariables,
         complexity: complexity
@@ -209,7 +188,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
       
       if (!savedTemplate) throw new Error("No template data returned from insert");
       
-      // Cast the saved template to our template interface
       const queryDetails = savedTemplate.query_details as unknown as QueryDetailsJson;
       
       const mappedTemplate: QueryTemplate = {

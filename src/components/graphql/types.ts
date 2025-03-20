@@ -1,4 +1,3 @@
-
 export interface TypeField {
   name: string;
   type: string;
@@ -49,4 +48,17 @@ export interface QueryResult {
     restoreRate: number;
     requestCost: number;
   };
+}
+
+// Add this JSON type helper for query details
+export interface QueryDetailsJson {
+  query: string;
+  variables: Array<{
+    name: string;
+    type: string;
+    defaultValue: string;
+  }>;
+  complexity: number;
+  execution_count?: number;
+  average_execution_time?: number;
 }
