@@ -43,7 +43,10 @@ const App = () => (
               <Route path="/sources" element={<Sources />} />
               <Route path="/sources/new" element={<SourceForm />} />
               <Route path="/sources/edit/:id" element={<SourceForm />} />
-              <Route path="/datasets" element={<Datasets />} />
+              
+              {/* Dataset Routes */}
+              <Route path="/datasets/*" element={<Datasets />} />
+              
               <Route path="/transformations" element={<Transformations />} />
               <Route path="/destinations" element={<Destinations />} />
               <Route path="/jobs" element={<Jobs />} />

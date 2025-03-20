@@ -83,6 +83,39 @@ export type Database = {
         }
         Relationships: []
       }
+      dataset_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          query_details: Json | null
+          query_name: string
+          query_type: Database["public"]["Enums"]["query_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          query_details?: Json | null
+          query_name: string
+          query_type: Database["public"]["Enums"]["query_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          query_details?: Json | null
+          query_name?: string
+          query_type?: Database["public"]["Enums"]["query_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       datasets: {
         Row: {
           created_at: string
@@ -90,8 +123,12 @@ export type Database = {
           data_updated_at: string | null
           description: string | null
           error_message: string | null
+          extraction_progress: number | null
+          extraction_settings: Json | null
           id: string
+          is_template: boolean | null
           last_completed_run: string | null
+          last_error_details: Json | null
           last_run_duration: number | null
           name: string
           next_scheduled_run: string | null
@@ -102,6 +139,7 @@ export type Database = {
           refresh_frequency: string | null
           source_id: string
           status: string | null
+          template_id: string | null
           updated_at: string
           user_id: string
         }
@@ -111,8 +149,12 @@ export type Database = {
           data_updated_at?: string | null
           description?: string | null
           error_message?: string | null
+          extraction_progress?: number | null
+          extraction_settings?: Json | null
           id?: string
+          is_template?: boolean | null
           last_completed_run?: string | null
+          last_error_details?: Json | null
           last_run_duration?: number | null
           name: string
           next_scheduled_run?: string | null
@@ -123,6 +165,7 @@ export type Database = {
           refresh_frequency?: string | null
           source_id: string
           status?: string | null
+          template_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -132,8 +175,12 @@ export type Database = {
           data_updated_at?: string | null
           description?: string | null
           error_message?: string | null
+          extraction_progress?: number | null
+          extraction_settings?: Json | null
           id?: string
+          is_template?: boolean | null
           last_completed_run?: string | null
+          last_error_details?: Json | null
           last_run_duration?: number | null
           name?: string
           next_scheduled_run?: string | null
@@ -144,6 +191,7 @@ export type Database = {
           refresh_frequency?: string | null
           source_id?: string
           status?: string | null
+          template_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -153,6 +201,69 @@ export type Database = {
             columns: ["source_id"]
             isOneToOne: false
             referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "datasets_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "dataset_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      extraction_logs: {
+        Row: {
+          api_calls: number | null
+          average_response_time: number | null
+          created_at: string
+          dataset_id: string
+          end_time: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          records_processed: number | null
+          start_time: string
+          status: string
+          total_records: number | null
+          updated_at: string
+        }
+        Insert: {
+          api_calls?: number | null
+          average_response_time?: number | null
+          created_at?: string
+          dataset_id: string
+          end_time?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          records_processed?: number | null
+          start_time?: string
+          status?: string
+          total_records?: number | null
+          updated_at?: string
+        }
+        Update: {
+          api_calls?: number | null
+          average_response_time?: number | null
+          created_at?: string
+          dataset_id?: string
+          end_time?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          records_processed?: number | null
+          start_time?: string
+          status?: string
+          total_records?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extraction_logs_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "datasets"
             referencedColumns: ["id"]
           },
         ]
