@@ -9,6 +9,7 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import AuthLayout from "./layouts/AuthLayout";
 import Dashboard from "./pages/Dashboard";
 import Sources from "./pages/Sources";
+import SourceForm from "./components/sources/SourceForm";
 import Datasets from "./pages/Datasets";
 import Transformations from "./pages/Transformations";
 import Destinations from "./pages/Destinations";
@@ -40,6 +41,8 @@ const App = () => (
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/sources" element={<Sources />} />
+              <Route path="/sources/new" element={<SourceForm />} />
+              <Route path="/sources/edit/:id" element={<SourceForm />} />
               <Route path="/datasets" element={<Datasets />} />
               <Route path="/transformations" element={<Transformations />} />
               <Route path="/destinations" element={<Destinations />} />
