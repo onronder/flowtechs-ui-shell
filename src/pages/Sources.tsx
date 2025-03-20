@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SourceList from '@/components/sources/SourceList';
+import ConnectionLogView from '@/components/sources/ConnectionLogView';
 
 const Sources = () => {
   return (
@@ -22,12 +23,7 @@ const Sources = () => {
         </TabsContent>
         
         <TabsContent value="activity" className="mt-4">
-          <div className="border rounded-lg p-8 flex flex-col items-center justify-center text-center space-y-3">
-            <h3 className="text-lg font-medium">Connection Activity Log</h3>
-            <p className="text-muted-foreground max-w-md">
-              Connection activity monitoring will be available once you have active sources with connection history.
-            </p>
-          </div>
+          <ConnectionLogView />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,6 +1,6 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
-import { v4 as uuidv4 } from 'https://esm.sh/uuid@9.0.0';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@latest';
+import { v4 as uuidv4 } from 'https://esm.sh/uuid@latest';
 
 // Define Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';

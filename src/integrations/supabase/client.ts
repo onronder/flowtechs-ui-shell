@@ -31,7 +31,7 @@ export interface Source {
   connection_status: ConnectionStatus;
   last_connected_at: string | null;
   connection_error: string | null;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, any> | Json | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,8 +57,8 @@ export interface Dataset {
   source_id: string;
   query_type: QueryType;
   query_name: string;
-  query_details: Record<string, any> | Json | null;  // Updated to accept Json type
-  data: Record<string, any> | Json | null;  // Updated to accept Json type
+  query_details: Record<string, any> | Json | null;
+  data: Record<string, any> | Json | null;
   data_updated_at: string | null;
   status: string;
   error_message: string | null;
