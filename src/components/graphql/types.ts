@@ -1,3 +1,4 @@
+
 export interface TypeField {
   name: string;
   type: string;
@@ -50,7 +51,7 @@ export interface QueryResult {
   };
 }
 
-// Add this JSON type helper for query details
+// Define the JSON type helper for query details
 export interface QueryDetailsJson {
   query: string;
   variables: Array<{

@@ -73,7 +73,7 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
         if (!data) return;
         
         const mappedTemplates = data.map(item => {
-          const queryDetails = item.query_details as unknown as QueryDetailsJson;
+          const queryDetails = item.query_details as Json as unknown as QueryDetailsJson;
           
           return {
             id: item.id,
@@ -163,9 +163,13 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
 
   const saveTemplate = async (data: any) => {
     try {
-      const queryDetailsObject: QueryDetailsJson = {
+      const queryDetailsObject: Record<string, any> = {
         query: generatedQuery,
-        variables: queryVariables,
+        variables: queryVariables.map(v => ({
+          name: v.name,
+          type: v.type,
+          defaultValue: v.defaultValue
+        })),
         complexity: complexity
       };
       
@@ -188,15 +192,18 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
       
       if (!savedTemplate) throw new Error("No template data returned from insert");
       
-      const queryDetails = savedTemplate.query_details as unknown as QueryDetailsJson;
+      const rawQueryDetails = savedTemplate.query_details as Json;
+      const queryDetails = typeof rawQueryDetails === 'object' 
+        ? (rawQueryDetails as unknown as QueryDetailsJson)
+        : { query: "", variables: [], complexity: 0 };
       
       const mappedTemplate: QueryTemplate = {
         id: savedTemplate.id,
         name: savedTemplate.name,
         description: savedTemplate.description,
-        query: queryDetails?.query || "",
-        variables: queryDetails?.variables || [],
-        complexity: queryDetails?.complexity || 0,
+        query: queryDetails.query || "",
+        variables: queryDetails.variables || [],
+        complexity: queryDetails.complexity || 0,
         source_id: sourceId,
         created_at: savedTemplate.created_at,
         updated_at: savedTemplate.updated_at
