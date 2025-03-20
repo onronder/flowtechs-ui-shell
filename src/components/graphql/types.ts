@@ -63,3 +63,56 @@ export interface QueryDetailsJson {
   execution_count?: number;
   average_execution_time?: number;
 }
+
+// Shopify specific types
+export interface ShopifySchemaVersion {
+  apiVersion: string;
+  lastUpdated: string;
+  hash: string;
+}
+
+export interface ShopifyErrorResponse {
+  type: 'GRAPHQL_ERROR' | 'NETWORK_ERROR' | 'RATE_LIMIT' | 'AUTHENTICATION' | 'SERVER_ERROR' | 'VALIDATION_ERROR' | 'UNKNOWN';
+  message: string;
+  code?: string;
+  statusCode?: number;
+  retryAfter?: number;
+  requestId?: string;
+  details?: Record<string, any>;
+}
+
+export interface ShopifyCursorPagination {
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  startCursor?: string;
+  endCursor?: string;
+}
+
+export interface ShopifyRateLimitInfo {
+  available: number;
+  maximum: number;
+  restoreRate: number;
+  requestCost: number;
+  resetAt?: string;
+}
+
+export interface ShopifyQueryMetrics {
+  requestSize: number;
+  responseSize: number;
+  executionTime: number;
+  timestamp: string;
+  statusCode: number;
+  rateLimitInfo?: ShopifyRateLimitInfo;
+}
+
+export interface ShopifyExtractOptions {
+  batchSize?: number;
+  concurrency?: number;
+  fieldSelection?: string[];
+  includeMetafields?: boolean;
+  dateRange?: string;
+  filters?: Record<string, any>;
+  maxRecords?: number;
+  useCache?: boolean;
+  cacheTTL?: number;
+}
