@@ -15,7 +15,8 @@ import {
   Check,
   ArrowUp,
   ArrowDown,
-  GripVertical
+  GripVertical,
+  Info
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -100,13 +101,15 @@ interface QueryVariable {
 interface QueryTemplate {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
   query: string;
   variables: QueryVariable[];
   complexity: number;
   source_id: string;
   created_at: string;
   updated_at: string;
+  execution_count?: number;
+  average_execution_time?: number;
 }
 
 const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
@@ -148,7 +151,7 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
           
         if (error) throw error;
         
-        setTemplates(data || []);
+        setTemplates(data as QueryTemplate[]);
       } catch (error) {
         console.error("Error fetching templates:", error);
         toast({
@@ -160,7 +163,7 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
     };
     
     fetchTemplates();
-  }, [sourceId]);
+  }, [sourceId, toast]);
 
   // Generate GraphQL query based on selected fields
   useEffect(() => {
@@ -468,16 +471,18 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
 
   const saveTemplate = async (data: any) => {
     try {
+      const templateData = {
+        name: data.templateName,
+        description: data.templateDescription,
+        query: generatedQuery,
+        variables: queryVariables,
+        complexity: complexity,
+        source_id: sourceId
+      };
+
       const { data: savedTemplate, error } = await supabase
         .from('query_templates')
-        .insert({
-          name: data.templateName,
-          description: data.templateDescription,
-          query: generatedQuery,
-          variables: queryVariables,
-          complexity: complexity,
-          source_id: sourceId
-        })
+        .insert(templateData)
         .select()
         .single();
         
@@ -680,7 +685,7 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <InfoIcon className="h-3 w-3 ml-1 text-muted-foreground" />
+                            <Info className="h-3 w-3 ml-1 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>{arg.description || 'No description'}</p>
