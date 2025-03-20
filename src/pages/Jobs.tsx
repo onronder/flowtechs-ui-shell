@@ -39,7 +39,8 @@ const Jobs = () => {
         
         if (error) throw error;
         
-        setDatasets(data || []);
+        // Type assertion to ensure compatibility
+        setDatasets(data as Dataset[]);
       } catch (error) {
         console.error('Error fetching datasets:', error);
         toast({
