@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -73,20 +74,25 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
         if (!data) return;
         
         const mappedTemplates = data.map(item => {
-          const queryDetails = item.query_details as Json as unknown as QueryDetailsJson;
+          // Use explicit type assertions to handle the Json type from Supabase
+          const queryDetailsJson = item.query_details as Json;
+          // Handle both object and string cases for the Json type
+          const queryDetails = typeof queryDetailsJson === 'object' 
+            ? (queryDetailsJson as unknown as QueryDetailsJson)
+            : { query: "", variables: [], complexity: 0 };
           
           return {
             id: item.id,
             name: item.name,
             description: item.description,
-            query: queryDetails?.query || "",
-            variables: queryDetails?.variables || [],
-            complexity: queryDetails?.complexity || 0,
+            query: queryDetails.query || "",
+            variables: queryDetails.variables || [],
+            complexity: queryDetails.complexity || 0,
             source_id: sourceId,
             created_at: item.created_at,
             updated_at: item.updated_at,
-            execution_count: queryDetails?.execution_count,
-            average_execution_time: queryDetails?.average_execution_time
+            execution_count: queryDetails.execution_count,
+            average_execution_time: queryDetails.average_execution_time
           } as QueryTemplate;
         });
         
@@ -163,7 +169,8 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
 
   const saveTemplate = async (data: any) => {
     try {
-      const queryDetailsObject: Record<string, any> = {
+      // Create query details that will be compatible with Json type
+      const queryDetailsObject = {
         query: generatedQuery,
         variables: queryVariables.map(v => ({
           name: v.name,
@@ -192,6 +199,7 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
       
       if (!savedTemplate) throw new Error("No template data returned from insert");
       
+      // Handle query details from the saved template
       const rawQueryDetails = savedTemplate.query_details as Json;
       const queryDetails = typeof rawQueryDetails === 'object' 
         ? (rawQueryDetails as unknown as QueryDetailsJson)
