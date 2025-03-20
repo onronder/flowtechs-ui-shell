@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
@@ -7,6 +8,9 @@ import DatasetView from "@/components/datasets/DatasetView";
 import DatasetTemplateList from "@/components/datasets/DatasetTemplateList";
 import { supabase, DatasetTemplate } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { WandSparkles } from "lucide-react";
 
 const Datasets = () => {
   const location = useLocation();
@@ -55,11 +59,19 @@ const Datasets = () => {
   
   return (
     <div className="animate-fade-in space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Datasets</h1>
-        <p className="text-muted-foreground">
-          Create and manage datasets from your connected sources.
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Datasets</h1>
+          <p className="text-muted-foreground">
+            Create and manage datasets from your connected sources.
+          </p>
+        </div>
+        <Button asChild variant="secondary">
+          <Link to="/custom-query">
+            <WandSparkles className="mr-2 h-4 w-4" />
+            Custom Query Builder
+          </Link>
+        </Button>
       </div>
       
       <Tabs
