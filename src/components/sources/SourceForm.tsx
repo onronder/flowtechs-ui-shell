@@ -30,7 +30,6 @@ import {
 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 
-// Define the schema for the form
 const shopifySourceSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
@@ -58,7 +57,6 @@ export default function SourceForm() {
   const { id } = useParams();
   const isEditing = !!id;
 
-  // Initialize form with default values
   const form = useForm<FormValues>({
     resolver: zodResolver(shopifySourceSchema),
     defaultValues: {
@@ -76,7 +74,6 @@ export default function SourceForm() {
     }
   });
 
-  // Fetch source data if editing
   useEffect(() => {
     if (isEditing) {
       fetchSourceData();
@@ -87,7 +84,6 @@ export default function SourceForm() {
     try {
       setLoading(true);
       
-      // Fetch the basic source data
       const { data: sourceData, error: sourceError } = await supabase
         .from('sources')
         .select('*')
@@ -101,14 +97,12 @@ export default function SourceForm() {
         throw new Error('Source not found');
       }
       
-      // Get the decrypted credentials and metadata from the edge function
       const { data: credentials, error: credentialsError } = await supabase.functions.invoke('get-shopify-credentials', {
         body: { sourceId: id }
       });
       
       if (credentialsError) throw credentialsError;
       
-      // Combine the data and set form values
       const metadata = sourceData.metadata || {};
       
       form.reset({
@@ -119,15 +113,14 @@ export default function SourceForm() {
         api_secret: credentials.api_secret || '',
         access_token: credentials.access_token || '',
         api_version: (sourceData.api_version as ShopifyApiVersion) || '2024-04',
-        connection_timeout: getMetadataValue(metadata, 'connection_timeout', '30'),
-        max_retries: getMetadataValue(metadata, 'max_retries', '3'),
-        throttle_rate: getMetadataValue(metadata, 'throttle_rate', '2'),
-        custom_headers: getMetadataValue(metadata, 'custom_headers', null) 
-          ? JSON.stringify(getMetadataValue(metadata, 'custom_headers', {}), null, 2) 
+        connection_timeout: getMetadataValue<string>(metadata as Record<string, any>, 'connection_timeout', '30'),
+        max_retries: getMetadataValue<string>(metadata as Record<string, any>, 'max_retries', '3'),
+        throttle_rate: getMetadataValue<string>(metadata as Record<string, any>, 'throttle_rate', '2'),
+        custom_headers: getMetadataValue<Record<string, any> | null>(metadata as Record<string, any>, 'custom_headers', null) 
+          ? JSON.stringify(getMetadataValue<Record<string, any>>(metadata as Record<string, any>, 'custom_headers', {}), null, 2) 
           : '',
       });
       
-      // Check connection status
       if (sourceData.connection_status === 'connected') {
         setConnectionStatus('success');
         setConnectionMessage('Connection to Shopify store is active');
@@ -136,10 +129,9 @@ export default function SourceForm() {
         setConnectionMessage(sourceData.connection_error || 'Connection error');
       }
       
-      // Get rate limit info
-      const rateLimits = getMetadataValue(metadata, 'rate_limits', null);
+      const rateLimits = getMetadataValue<RateLimitInfo | null>(metadata as Record<string, any>, 'rate_limits', null);
       if (rateLimits) {
-        setRateLimitInfo(rateLimits as RateLimitInfo);
+        setRateLimitInfo(rateLimits);
       }
       
     } catch (error) {
@@ -160,7 +152,6 @@ export default function SourceForm() {
       setConnectionStatus(null);
       setConnectionMessage('');
       
-      // Parse custom headers
       let customHeaders = {};
       try {
         if (values.custom_headers) {
@@ -170,7 +161,6 @@ export default function SourceForm() {
         throw new Error('Invalid custom headers format. Please provide valid JSON.');
       }
       
-      // Call edge function to test connection
       const { data, error } = await supabase.functions.invoke('test-shopify-connection', {
         body: {
           store_url: values.store_url,
@@ -228,7 +218,6 @@ export default function SourceForm() {
     try {
       setLoading(true);
       
-      // Parse custom headers
       let customHeaders = {};
       try {
         if (values.custom_headers) {
@@ -238,7 +227,6 @@ export default function SourceForm() {
         throw new Error('Invalid custom headers format. Please provide valid JSON.');
       }
       
-      // Prepare metadata
       const metadata = {
         connection_timeout: parseInt(values.connection_timeout),
         max_retries: parseInt(values.max_retries),
@@ -246,11 +234,9 @@ export default function SourceForm() {
         custom_headers: customHeaders
       };
       
-      // Extract store name from URL
       const storeUrl = new URL(values.store_url);
       const storeName = storeUrl.hostname.split('.')[0];
       
-      // Call edge function to save credentials securely
       const { data, error } = await supabase.functions.invoke('save-shopify-source', {
         body: {
           id: isEditing ? id : undefined,
@@ -559,7 +545,7 @@ export default function SourceForm() {
                         
                         {rateLimitInfo && (
                           <span className="ml-4 text-xs bg-green-100 px-2 py-0.5 rounded-full">
-                            Rate limit: {rateLimitInfo.available}/{rateLimitInfo.total}
+                            Rate limit: {rateLimitInfo.available}/{rateLimitInfo.maximum}
                           </span>
                         )}
                       </div>

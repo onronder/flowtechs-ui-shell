@@ -1,4 +1,3 @@
-
 import { RateLimitInfo, extractIdFromGid } from "@/integrations/supabase/client";
 
 // Query engine configuration
@@ -82,6 +81,7 @@ export interface QueryContext {
   resume: () => void;
   isPaused: boolean;
   onProgress?: (progress: QueryProgress) => void;
+  metadata?: Record<string, any>;
 }
 
 // Cache manager for query results
@@ -327,7 +327,7 @@ export const extractAndDeduplicateIds = (
   return Array.from(idSet);
 };
 
-// Default configuration
+// DEFAULT_QUERY_CONFIG and other constants
 export const DEFAULT_QUERY_CONFIG: QueryEngineConfig = {
   batchSize: 25,
   concurrentRequests: 4,

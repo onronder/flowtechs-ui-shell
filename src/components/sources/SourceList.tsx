@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,7 +37,7 @@ export default function SourceList() {
       
       if (error) throw error;
       
-      setSources(data || []);
+      setSources(data as unknown as Source[]);
     } catch (error) {
       console.error('Error fetching sources:', error);
       toast({
@@ -55,14 +54,12 @@ export default function SourceList() {
     try {
       setRefreshing(prev => ({ ...prev, [sourceId]: true }));
       
-      // Call edge function to test connection
       const { data, error } = await supabase.functions.invoke('check-shopify-connection', {
         body: { sourceId }
       });
       
       if (error) throw error;
       
-      // Refresh sources list
       fetchSources();
       
       toast({

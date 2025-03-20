@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
@@ -32,7 +31,8 @@ const Datasets = () => {
       
       if (error) throw error;
       
-      setTemplates(data || []);
+      // Cast data to DatasetTemplate[] type to fix type mismatch
+      setTemplates(data as unknown as DatasetTemplate[]);
     } catch (error) {
       console.error('Error fetching templates:', error);
       toast({
