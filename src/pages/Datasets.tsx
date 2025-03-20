@@ -1,15 +1,49 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import DatasetList from "@/components/datasets/DatasetList";
 import DatasetForm from "@/components/datasets/DatasetForm";
 import DatasetView from "@/components/datasets/DatasetView";
+import DatasetTemplateList from "@/components/datasets/DatasetTemplateList";
+import { supabase, DatasetTemplate } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 const Datasets = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>("datasets");
+  const [templates, setTemplates] = useState<DatasetTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const { toast } = useToast();
+  
+  // Load templates on component mount
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+  
+  const fetchTemplates = async () => {
+    try {
+      setLoadingTemplates(true);
+      const { data, error } = await supabase
+        .from('dataset_templates')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      
+      setTemplates(data || []);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+      toast({
+        variant: "destructive",
+        title: "Failed to load templates",
+        description: "There was an error loading dataset templates."
+      });
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
   
   // Check if we're on the base datasets path
   const isBasePath = location.pathname === "/datasets";
@@ -45,9 +79,11 @@ const Datasets = () => {
         </TabsContent>
         
         <TabsContent value="templates" className="mt-6">
-          <div className="text-center p-12 text-muted-foreground">
-            Dataset templates will be available in a future update.
-          </div>
+          <DatasetTemplateList 
+            templates={templates} 
+            loading={loadingTemplates} 
+            onRefresh={fetchTemplates} 
+          />
         </TabsContent>
       </Tabs>
     </div>

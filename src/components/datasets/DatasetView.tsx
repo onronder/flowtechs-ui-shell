@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase, Dataset } from "@/integrations/supabase/client";
@@ -18,6 +19,7 @@ import { DatasetPreview } from "./DatasetPreview";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DatasetHistory from "./DatasetHistory";
 import DatasetSettings from "./DatasetSettings";
+import DependentQueryComponent from "./DependentQueryComponent";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowLeft, Download, Edit, Loader2, PlayCircle, RefreshCw, Trash2 } from "lucide-react";
@@ -32,6 +34,7 @@ const DatasetView = () => {
   const [running, setRunning] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("preview");
   
   useEffect(() => {
     if (!id) return;
@@ -532,8 +535,8 @@ const DatasetView = () => {
               <p className="text-sm font-medium">Status</p>
               <div className="flex items-center">
                 {getStatusBadge(dataset.status)}
-                {dataset.status === 'running' && (
-                  <div className="w-full max-w-[120px]">
+                {dataset.status === 'running' && dataset.extraction_progress !== null && (
+                  <div className="w-full max-w-[120px] ml-2">
                     <Progress 
                       value={dataset.extraction_progress || 0} 
                       className="h-2"
@@ -581,9 +584,10 @@ const DatasetView = () => {
         </CardContent>
       </Card>
       
-      <Tabs defaultValue="preview">
+      <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="preview">Data Preview</TabsTrigger>
+          <TabsTrigger value="dependent">Dependent Queries</TabsTrigger>
           <TabsTrigger value="history">Extraction History</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
@@ -615,6 +619,13 @@ const DatasetView = () => {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+        
+        <TabsContent value="dependent" className="mt-4">
+          <DependentQueryComponent 
+            dataset={dataset}
+            onComplete={fetchDataset}
+          />
         </TabsContent>
         
         <TabsContent value="history" className="mt-4">
