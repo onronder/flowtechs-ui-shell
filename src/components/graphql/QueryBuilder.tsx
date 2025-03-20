@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { 
@@ -144,14 +143,28 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
       
       try {
         const { data, error } = await supabase
-          .from('query_templates')
+          .from('dataset_templates')
           .select('*')
           .eq('source_id', sourceId)
           .order('created_at', { ascending: false });
           
         if (error) throw error;
         
-        setTemplates(data as QueryTemplate[]);
+        const mappedTemplates = (data || []).map(item => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          query: item.query_details?.query || "",
+          variables: item.query_details?.variables || [],
+          complexity: item.query_details?.complexity || 0,
+          source_id: item.source_id || sourceId,
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          execution_count: item.query_details?.execution_count,
+          average_execution_time: item.query_details?.average_execution_time
+        })) as QueryTemplate[];
+        
+        setTemplates(mappedTemplates);
       } catch (error) {
         console.error("Error fetching templates:", error);
         toast({
@@ -474,21 +487,37 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
       const templateData = {
         name: data.templateName,
         description: data.templateDescription,
-        query: generatedQuery,
-        variables: queryVariables,
-        complexity: complexity,
+        query_type: "custom" as const,
+        query_name: queryName,
+        query_details: {
+          query: generatedQuery,
+          variables: queryVariables,
+          complexity: complexity
+        },
         source_id: sourceId
       };
 
       const { data: savedTemplate, error } = await supabase
-        .from('query_templates')
+        .from('dataset_templates')
         .insert(templateData)
         .select()
         .single();
         
       if (error) throw error;
       
-      setTemplates(prev => [savedTemplate as QueryTemplate, ...prev]);
+      const mappedTemplate: QueryTemplate = {
+        id: savedTemplate.id,
+        name: savedTemplate.name,
+        description: savedTemplate.description,
+        query: savedTemplate.query_details?.query || "",
+        variables: savedTemplate.query_details?.variables || [],
+        complexity: savedTemplate.query_details?.complexity || 0,
+        source_id: savedTemplate.source_id,
+        created_at: savedTemplate.created_at,
+        updated_at: savedTemplate.updated_at
+      };
+      
+      setTemplates(prev => [mappedTemplate, ...prev]);
       
       toast({
         title: "Template saved",
@@ -509,8 +538,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
 
   const loadTemplate = (template: QueryTemplate) => {
     try {
-      // Parse the query using a simple approach
-      // For a production app, you'd want a proper GraphQL parser
       const lines = template.query.split('\n');
       const queryNameLine = lines[0];
       const queryNameMatch = queryNameLine.match(/query\s+([a-zA-Z0-9_]+)/);
@@ -519,11 +546,8 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
         setQueryName(queryNameMatch[1]);
       }
       
-      // Set variables from template
       setQueryVariables(template.variables || []);
       
-      // For now, just set the query directly
-      // In a real app, you'd want to reconstruct the field selection state
       setGeneratedQuery(template.query);
       
       toast({
@@ -531,7 +555,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
         description: "Query template has been loaded."
       });
       
-      // Switch to query tab
       setActiveTab("query");
     } catch (error) {
       console.error("Error loading template:", error);
@@ -553,13 +576,11 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
     try {
       const startTime = performance.now();
       
-      // Prepare variables for the query
       const variables = queryVariables.reduce((obj, variable) => {
         obj[variable.name] = variable.defaultValue;
         return obj;
       }, {} as Record<string, any>);
       
-      // Call the execute query function
       const response = await supabase.functions.invoke('execute-shopify-query', {
         body: {
           sourceId,
@@ -670,7 +691,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
                 </div>
               </div>
               
-              {/* Field arguments */}
               {field.selected && hasArgs && (
                 <div className="ml-7 mb-2">
                   {field.args.map(arg => (
@@ -698,7 +718,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
                 </div>
               )}
               
-              {/* Render subfields if expanded */}
               {hasSubfields && isExpanded && (
                 <div className="ml-5 pl-2 border-l">
                   {renderFieldsTree(field.subfields!, currentPath)}
@@ -758,7 +777,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
     );
   };
 
-  // Calculate a color based on complexity
   const getComplexityColor = () => {
     if (complexity < 10) return "bg-green-500";
     if (complexity < 20) return "bg-yellow-500";
@@ -1006,7 +1024,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
         </CardContent>
       </Card>
       
-      {/* Save Template Dialog */}
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent>
           <DialogHeader>
