@@ -121,8 +121,9 @@ const DatasetForm = () => {
 
           if (datasetError) throw datasetError;
           
-          // Set form values from dataset
-          const queryDetails = dataset.query_details || {};
+          // Set form values from dataset, ensuring proper type handling for query_details
+          // Cast query_details to Record<string, any> to safely access properties
+          const queryDetails = dataset.query_details as Record<string, any> || {};
           
           form.reset({
             name: dataset.name,

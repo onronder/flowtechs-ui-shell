@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase, Dataset } from "@/integrations/supabase/client";
@@ -534,17 +533,17 @@ const DatasetView = () => {
               <div className="flex items-center">
                 {getStatusBadge(dataset.status)}
                 {dataset.status === 'running' && (
-                  <span className="text-sm ml-2 text-muted-foreground">
-                    {dataset.extraction_progress || 0}% complete
-                  </span>
+                  <div className="w-full max-w-[120px]">
+                    <Progress 
+                      value={dataset.extraction_progress || 0} 
+                      className="h-2"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {dataset.extraction_progress || 0}% complete
+                    </div>
+                  </div>
                 )}
               </div>
-              {dataset.status === 'running' && (
-                <Progress 
-                  value={dataset.extraction_progress || 0} 
-                  className="h-2"
-                />
-              )}
               {dataset.status === 'failed' && dataset.last_error_details && (
                 <Alert variant="destructive" className="mt-2">
                   <AlertTitle>Extraction Failed</AlertTitle>

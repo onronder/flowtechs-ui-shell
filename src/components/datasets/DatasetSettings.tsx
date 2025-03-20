@@ -56,7 +56,7 @@ const DatasetSettings = ({ dataset, onUpdate }: DatasetSettingsProps) => {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   
-  // Extract settings from dataset
+  // Extract settings from dataset, ensuring proper type handling
   const extractionSettings = dataset.extraction_settings || {
     batch_size: 100,
     max_retries: 3,

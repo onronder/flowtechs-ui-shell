@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -98,7 +97,7 @@ const DatasetHistory = ({ datasetId }: DatasetHistoryProps) => {
   const formatDuration = (startTime: string, endTime: string | null) => {
     if (!endTime) return 'In progress';
     
-    return formatDistanceStrict(new Date(startTime), new Date(endTime), { includeSeconds: true });
+    return formatDistanceStrict(new Date(startTime), new Date(endTime), { addSuffix: false });
   };
   
   const getStatusBadge = (status: string) => {
