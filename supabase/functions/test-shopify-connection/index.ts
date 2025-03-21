@@ -59,6 +59,13 @@ async function testShopifyConnection(connectionData: {
   throttle_rate: number;
   custom_headers: Record<string, string>;
 }) {
+  console.log('Testing Shopify connection with params:', {
+    ...connectionData, 
+    access_token: '***REDACTED***',
+    api_key: connectionData.api_key ? '***REDACTED***' : undefined,
+    api_secret: connectionData.api_secret ? '***REDACTED***' : undefined,
+  });
+  
   // Validate and clean up the store URL
   let storeUrl = connectionData.store_url;
   if (!storeUrl.startsWith('https://')) {
@@ -72,6 +79,7 @@ async function testShopifyConnection(connectionData: {
   
   // Prepare the shop API URL
   const shopApiUrl = `${storeUrl}/admin/api/${connectionData.api_version}/shop.json`;
+  console.log('Using Shopify API URL:', shopApiUrl);
   
   // Prepare headers with authentication
   const headers = {
@@ -87,6 +95,7 @@ async function testShopifyConnection(connectionData: {
   }, connectionData.connection_timeout * 1000);
   
   try {
+    console.log('Making request to Shopify API...');
     // Make the request with retry handling
     const response = await retryWithBackoff(
       () => fetch(shopApiUrl, {
@@ -100,8 +109,12 @@ async function testShopifyConnection(connectionData: {
     // Clear the timeout
     clearTimeout(timeoutId);
     
+    console.log('Received response from Shopify API with status:', response.status);
+    
     // Extract rate limit information from headers
     const rateLimitHeader = response.headers.get('X-Shopify-Shop-Api-Call-Limit');
+    console.log('Rate limit header:', rateLimitHeader);
+    
     const rateLimitData = rateLimitHeader
       ? {
           available: parseInt(rateLimitHeader.split('/')[0]),
@@ -115,6 +128,7 @@ async function testShopifyConnection(connectionData: {
     // Handle the response based on status code
     if (response.ok) {
       const shopData = await response.json();
+      console.log('Successfully connected to Shopify shop:', shopData.shop?.name);
       
       // Test throttling by waiting a specified amount of time
       if (connectionData.throttle_rate > 0) {
@@ -135,9 +149,11 @@ async function testShopifyConnection(connectionData: {
       try {
         const errorData = await response.json();
         errorMessage = errorData.errors || JSON.stringify(errorData);
+        console.error('Shopify API error (JSON):', errorData);
       } catch {
         // If not JSON, get as text
         errorMessage = await response.text();
+        console.error('Shopify API error (text):', errorMessage);
       }
       
       const statusMessage = getShopifyErrorMessage(response.status);
@@ -152,6 +168,8 @@ async function testShopifyConnection(connectionData: {
   } catch (error) {
     // Clear the timeout
     clearTimeout(timeoutId);
+    
+    console.error('Error during Shopify connection test:', error);
     
     // Handle specific error types
     if (error instanceof Error) {
@@ -216,14 +234,35 @@ Deno.serve(async (req) => {
   if (corsResponse) return corsResponse;
   
   try {
+    console.log('Received request to test-shopify-connection');
+    
     // Parse request body
-    const connectionData = await req.json();
+    let connectionData;
+    try {
+      connectionData = await req.json();
+      console.log('Parsed connection data:', {
+        ...connectionData,
+        access_token: '***REDACTED***',
+        api_key: connectionData.api_key ? '***REDACTED***' : undefined,
+        api_secret: connectionData.api_secret ? '***REDACTED***' : undefined,
+      });
+    } catch (e) {
+      console.error('Error parsing request body:', e);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Invalid request format: ' + (e instanceof Error ? e.message : 'Unknown error'),
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Validate required fields
     const requiredFields = ['store_url', 'access_token', 'api_version'];
     const missingFields = requiredFields.filter(field => !connectionData[field]);
     
     if (missingFields.length > 0) {
+      console.error('Missing required fields:', missingFields);
       return new Response(
         JSON.stringify({
           success: false,
@@ -245,12 +284,17 @@ Deno.serve(async (req) => {
     // Test connection
     const result = await testShopifyConnection(testData);
     
+    console.log('Connection test result:', {
+      ...result,
+      shop: result.shop ? '(shop data)' : undefined,
+    });
+    
     return new Response(
       JSON.stringify(result),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error in test-shopify-connection:', error);
+    console.error('Unexpected error in test-shopify-connection:', error);
     
     return new Response(
       JSON.stringify({

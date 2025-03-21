@@ -28,6 +28,8 @@ function handleCors(req: Request) {
 // Save source data with secure credential handling
 async function saveShopifySource(data: any, userId: string) {
   try {
+    console.log('Saving Shopify source with data:', { ...data, access_token: '***REDACTED***' });
+    
     // Check if this is an update or a new source
     const isUpdate = !!data.id;
     
@@ -55,10 +57,13 @@ async function saveShopifySource(data: any, userId: string) {
       metadata
     };
     
+    console.log('Prepared source data for saving:', { ...sourceData, access_token: '***REDACTED***' });
+    
     let result;
     
     if (isUpdate) {
       // Update existing source
+      console.log(`Updating existing source with ID: ${data.id}`);
       const { data: updateResult, error } = await supabase
         .from('sources')
         .update(sourceData)
@@ -66,7 +71,12 @@ async function saveShopifySource(data: any, userId: string) {
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating source:', error);
+        throw error;
+      }
+      
+      console.log('Source updated successfully');
       result = updateResult;
       
       // Log the update
@@ -80,6 +90,7 @@ async function saveShopifySource(data: any, userId: string) {
       );
     } else {
       // Create new source with user ID
+      console.log('Creating new source for user:', userId);
       const { data: insertResult, error } = await supabase
         .from('sources')
         .insert({
@@ -89,7 +100,12 @@ async function saveShopifySource(data: any, userId: string) {
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating source:', error);
+        throw error;
+      }
+      
+      console.log('Source created successfully with ID:', insertResult?.id);
       result = insertResult;
       
       // Log the creation
@@ -104,7 +120,13 @@ async function saveShopifySource(data: any, userId: string) {
     }
     
     // Test the connection immediately after saving
-    await testConnection(result.id);
+    try {
+      console.log('Testing connection after save for source ID:', result.id);
+      await testConnection(result.id);
+    } catch (connError) {
+      console.error('Connection test failed, but source was saved:', connError);
+      // Don't fail the whole operation if just the test fails
+    }
     
     return {
       success: true,
@@ -119,6 +141,7 @@ async function saveShopifySource(data: any, userId: string) {
 // Test the connection right after saving
 async function testConnection(sourceId: string) {
   try {
+    console.log(`Testing connection for source ID: ${sourceId}`);
     // Invoke the check-shopify-connection function
     const response = await fetch(
       `${supabaseUrl}/functions/v1/check-shopify-connection`,
@@ -132,13 +155,23 @@ async function testConnection(sourceId: string) {
       }
     );
     
+    const responseText = await response.text();
+    console.log(`Connection test response status: ${response.status}`);
+    
     if (!response.ok) {
-      console.error('Error testing connection:', await response.text());
+      console.error('Error testing connection:', responseText);
+      return { success: false, message: 'Connection test failed but source was saved' };
     }
     
-    return await response.json();
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      console.error('Error parsing connection test response:', e);
+      return { success: false, message: 'Invalid connection test response' };
+    }
   } catch (error) {
     console.error('Error invoking connection test:', error);
+    return { success: false, message: 'Connection test error, but source was saved' };
   }
 }
 
@@ -182,6 +215,8 @@ Deno.serve(async (req) => {
   if (corsResponse) return corsResponse;
   
   try {
+    console.log('Received request to save-shopify-source');
+    
     // Get the user ID from the JWT token
     const authHeader = req.headers.get('Authorization');
     let userId = '';
@@ -194,6 +229,7 @@ Deno.serve(async (req) => {
         // For development purposes, we'll get the user ID from the request if not authenticated
         const { data } = await supabase.auth.getUser(token);
         userId = data.user?.id || '';
+        console.log('Got user ID from token:', userId);
       } catch (e) {
         console.error('Error getting user ID from token:', e);
       }
@@ -201,6 +237,7 @@ Deno.serve(async (req) => {
     
     // If no user ID from auth, check for user ID in the request body for development
     if (!userId) {
+      console.log('No user ID from auth token, looking for fallback user');
       // For demos/dev, let's get the first user from the database
       const { data: firstUser } = await supabase
         .from('sources')
@@ -209,16 +246,31 @@ Deno.serve(async (req) => {
         .single();
       
       userId = firstUser?.user_id || '00000000-0000-0000-0000-000000000000';
+      console.log('Using fallback user ID:', userId);
     }
     
     // Parse request body
-    const sourceData = await req.json();
+    let sourceData;
+    try {
+      sourceData = await req.json();
+      console.log('Received source data:', { ...sourceData, access_token: '***REDACTED***' });
+    } catch (e) {
+      console.error('Error parsing request body:', e);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Invalid request body: ' + (e instanceof Error ? e.message : 'Unknown error'),
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Validate required fields
     const requiredFields = ['name', 'store_url', 'access_token', 'api_version'];
     const missingFields = requiredFields.filter(field => !sourceData[field]);
     
     if (missingFields.length > 0) {
+      console.error('Missing required fields:', missingFields);
       return new Response(
         JSON.stringify({
           success: false,
@@ -229,19 +281,32 @@ Deno.serve(async (req) => {
     }
     
     // Save the source data
-    const result = await saveShopifySource(sourceData, userId);
-    
-    return new Response(
-      JSON.stringify(result),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
-    console.error('Error in save-shopify-source:', error);
+    try {
+      const result = await saveShopifySource(sourceData, userId);
+      
+      console.log('Source saved successfully:', { id: result.source?.id });
+      return new Response(
+        JSON.stringify(result),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      console.error('Error in save-shopify-source:', error);
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error instanceof Error ? error.message : 'An unknown error occurred',
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  } catch (outerError) {
+    console.error('Unexpected error in save-shopify-source:', outerError);
     
     return new Response(
       JSON.stringify({
         success: false,
-        message: error instanceof Error ? error.message : 'An unknown error occurred',
+        message: outerError instanceof Error ? outerError.message : 'An unexpected error occurred',
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

@@ -10,6 +10,9 @@ interface ConnectionErrorAlertProps {
 }
 
 const ConnectionErrorAlert = ({ error, supabaseConfigured }: ConnectionErrorAlertProps) => {
+  const isEdgeFunctionError = error?.includes('Edge Function') || error?.includes('function') || error?.toLowerCase().includes('api');
+  const isShopifyError = error?.toLowerCase().includes('shopify');
+  
   return (
     <Alert variant="destructive" className="mb-6">
       <AlertTriangle className="h-5 w-5" />
@@ -38,6 +41,32 @@ const ConnectionErrorAlert = ({ error, supabaseConfigured }: ConnectionErrorAler
               These values have been configured directly in the application for this session, but using environment variables is recommended for security and flexibility.
             </p>
           </div>
+        ) : isEdgeFunctionError ? (
+          <div className="space-y-2">
+            <p className="font-medium">{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-md border border-red-200 dark:border-red-800">
+              <h4 className="text-sm font-semibold mb-2">This could be caused by:</h4>
+              <ul className="list-disc pl-5 text-sm space-y-1">
+                <li>A temporary network issue connecting to the backend service</li>
+                <li>Supabase edge function errors or timeouts</li>
+                <li>An issue with the provided Shopify credentials</li>
+              </ul>
+              <p className="mt-2 text-sm">Please check your Shopify credentials and try again, or check the edge function logs for more details.</p>
+            </div>
+          </div>
+        ) : isShopifyError ? (
+          <div className="space-y-2">
+            <p className="font-medium">{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-md border border-red-200 dark:border-red-800">
+              <h4 className="text-sm font-semibold mb-2">Common Shopify connection issues:</h4>
+              <ul className="list-disc pl-5 text-sm space-y-1">
+                <li>Invalid access token or API key</li>
+                <li>Incorrect store URL format (should be <code>your-store.myshopify.com</code>)</li>
+                <li>API scopes may be insufficient for the requested operation</li>
+                <li>The store may be password protected or not accessible</li>
+              </ul>
+            </div>
+          </div>
         ) : (
           <div className="space-y-2">
             <p>{error}</p>
@@ -63,6 +92,16 @@ const ConnectionErrorAlert = ({ error, supabaseConfigured }: ConnectionErrorAler
               onClick={() => window.open('https://supabase.com/dashboard/project/bkhuqrzqbexmgpqbyiir/settings/api', '_blank')}
             >
               Open Supabase API Settings
+            </Button>
+          )}
+          
+          {isEdgeFunctionError && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => window.open('https://supabase.com/dashboard/project/bkhuqrzqbexmgpqbyiir/functions/save-shopify-source/logs', '_blank')}
+            >
+              View Edge Function Logs
             </Button>
           )}
         </div>
