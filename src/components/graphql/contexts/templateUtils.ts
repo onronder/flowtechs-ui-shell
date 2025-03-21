@@ -1,9 +1,38 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { QueryTemplate, QueryDetailsJson } from "../types";
-import { QueryVariable } from "../types/core";
+import { QueryTemplate, QueryVariable } from "../types";
 
-// Save query template to Supabase
+export const fetchTemplates = async (sourceId: string): Promise<QueryTemplate[]> => {
+  try {
+    // Use the correct table name based on our database schema
+    const { data, error } = await supabase
+      .from('dataset_templates')
+      .select('*')
+      .eq('query_type', 'graphql')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching templates:", error);
+      return [];
+    }
+
+    return (data || []).map(template => ({
+      id: template.id,
+      name: template.name,
+      description: template.description || '',
+      query: template.query_details?.query || '',
+      variables: template.query_details?.variables || [],
+      sourceId: sourceId,
+      created_at: template.created_at,
+      updated_at: template.updated_at,
+      complexity: template.query_details?.complexity || 0
+    }));
+  } catch (error) {
+    console.error("Error parsing templates:", error);
+    return [];
+  }
+};
+
 export const saveTemplateToSupabase = async (
   data: any,
   query: string,
@@ -13,44 +42,40 @@ export const saveTemplateToSupabase = async (
   sourceId: string
 ): Promise<QueryTemplate | null> => {
   try {
-    const details: QueryDetailsJson = {
-      query,
-      variables,
-      complexity
+    const templateData = {
+      name: data.name,
+      description: data.description,
+      query_type: 'graphql',
+      query_name: queryName,
+      query_details: {
+        query,
+        variables,
+        complexity,
+        sourceId
+      }
     };
-    
+
     const { data: savedTemplate, error } = await supabase
-      .from('shopify_query_templates')
-      .insert({
-        name: data.templateName,
-        description: data.templateDescription,
-        source_id: sourceId,
-        details: details,
-        complexity
-      })
+      .from('dataset_templates')
+      .insert(templateData)
       .select()
       .single();
-    
+
     if (error) {
-      throw new Error(`Failed to save template: ${error.message}`);
+      console.error("Error saving template:", error);
+      throw error;
     }
-    
-    if (!savedTemplate) {
-      throw new Error('No template was returned from the database');
-    }
-    
+
     return {
       id: savedTemplate.id,
       name: savedTemplate.name,
-      description: savedTemplate.description,
-      query: details.query,
-      variables: details.variables,
-      complexity: details.complexity,
-      source_id: savedTemplate.source_id,
+      description: savedTemplate.description || '',
+      query: savedTemplate.query_details.query,
+      variables: savedTemplate.query_details.variables,
+      sourceId,
       created_at: savedTemplate.created_at,
       updated_at: savedTemplate.updated_at,
-      execution_count: savedTemplate.execution_count || 0,
-      average_execution_time: savedTemplate.average_execution_time || 0
+      complexity: savedTemplate.query_details.complexity
     };
   } catch (error) {
     console.error("Error saving template:", error);
@@ -58,45 +83,19 @@ export const saveTemplateToSupabase = async (
   }
 };
 
-// Fetch query templates from Supabase
-export const fetchTemplates = async (sourceId: string): Promise<QueryTemplate[]> => {
+export const parseTemplateQuery = (template: QueryTemplate, setQueryName: (name: string) => void) => {
   try {
-    const { data, error } = await supabase
-      .from('shopify_query_templates')
-      .select('*')
-      .eq('source_id', sourceId)
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      throw new Error(`Failed to fetch templates: ${error.message}`);
+    // Extract operation name from the query
+    const operationNameMatch = template.query.match(/query\s+(\w+)/);
+    if (operationNameMatch && operationNameMatch[1]) {
+      setQueryName(operationNameMatch[1]);
     }
-    
-    return data.map((template) => {
-      const details = template.details as QueryDetailsJson;
-      return {
-        id: template.id,
-        name: template.name,
-        description: template.description,
-        query: details.query,
-        variables: details.variables,
-        complexity: details.complexity,
-        source_id: template.source_id,
-        created_at: template.created_at,
-        updated_at: template.updated_at,
-        execution_count: template.execution_count || 0,
-        average_execution_time: template.average_execution_time || 0
-      };
-    });
-  } catch (error) {
-    console.error("Error fetching templates:", error);
-    return [];
-  }
-};
 
-// Parse and load a query template
-export const parseTemplateQuery = (
-  template: QueryTemplate,
-  setQueryName: (name: string) => void
-): void => {
-  setQueryName(template.name);
+    // If we couldn't extract operation name, use the template name
+    if (!operationNameMatch && template.name) {
+      setQueryName(template.name.replace(/\s+/g, ''));
+    }
+  } catch (error) {
+    console.error("Error parsing template query:", error);
+  }
 };

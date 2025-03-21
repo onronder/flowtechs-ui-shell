@@ -1,6 +1,6 @@
 
 import React from "react";
-import { ChevronRight, ChevronDown, AlertCircle, Info } from "lucide-react";
+import { ChevronRight, ChevronDown, AlertCircle, Info, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ interface FieldItemProps {
   field: TypeField;
   index: number;
   path: string[];
+  isLoading?: boolean;
   toggleSubfields: (field: TypeField, fieldIndex: number, path: string[]) => Promise<void>;
   toggleFieldSelection: (fieldPath: string[], selected: boolean) => void;
   handleArgumentChange: (fieldPath: string[], argName: string, value: string) => void;
@@ -27,6 +28,7 @@ const FieldItem = ({
   field, 
   index, 
   path, 
+  isLoading = false,
   toggleSubfields, 
   toggleFieldSelection, 
   handleArgumentChange,
@@ -58,11 +60,15 @@ const FieldItem = ({
                 size="icon"
                 className="h-5 w-5 p-0 mr-1"
                 onClick={() => toggleSubfields(field, index, path)}
+                disabled={isLoading}
               >
-                {isExpanded ? 
-                  <ChevronDown className="h-4 w-4" /> : 
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
                   <ChevronRight className="h-4 w-4" />
-                }
+                )}
               </Button>
             )}
             
@@ -114,4 +120,4 @@ const FieldItem = ({
   );
 };
 
-export default FieldItem;
+export default React.memo(FieldItem);

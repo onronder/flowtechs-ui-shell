@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { TypeField } from "./types";
 import { useToast } from "@/components/ui/use-toast";
 import FieldItem from "./components/FieldItem";
@@ -19,8 +19,9 @@ interface FieldsTreeProps {
 
 const FieldsTree = ({ fields, onFieldsChange, sourceId }: FieldsTreeProps) => {
   const { toast } = useToast();
+  const [loadingFields, setLoadingFields] = useState<string[]>([]);
 
-  const toggleSubfields = async (field: TypeField, fieldIndex: number, path: string[] = []) => {
+  const toggleSubfields = useCallback(async (field: TypeField, fieldIndex: number, path: string[] = []) => {
     // If subfields are already loaded, just toggle expanded state
     if (field.subfields && field.subfields.length > 0) {
       onFieldsChange(updateExpandedState(fields, [...path, field.name], !field.expanded));
@@ -28,6 +29,9 @@ const FieldsTree = ({ fields, onFieldsChange, sourceId }: FieldsTreeProps) => {
     }
     
     try {
+      // Set loading state for this field
+      setLoadingFields(prev => [...prev, field.name]);
+      
       // Load subfields from the schema
       const subfields = await loadSubfields(field, sourceId);
       
@@ -40,18 +44,22 @@ const FieldsTree = ({ fields, onFieldsChange, sourceId }: FieldsTreeProps) => {
         title: "Failed to load subfields",
         description: error instanceof Error ? error.message : "Unknown error"
       });
+    } finally {
+      // Clear loading state
+      setLoadingFields(prev => prev.filter(name => name !== field.name));
     }
-  };
+  }, [fields, onFieldsChange, sourceId, toast]);
 
-  const toggleFieldSelection = (fieldPath: string[], selected: boolean) => {
+  const toggleFieldSelection = useCallback((fieldPath: string[], selected: boolean) => {
     onFieldsChange(updateFieldSelection(fields, fieldPath, selected));
-  };
+  }, [fields, onFieldsChange]);
 
-  const handleArgumentChange = (fieldPath: string[], argName: string, value: string) => {
+  const handleArgumentChange = useCallback((fieldPath: string[], argName: string, value: string) => {
     onFieldsChange(updateArgumentValue(fields, fieldPath, argName, value));
-  };
+  }, [fields, onFieldsChange]);
 
-  const renderFieldsTree = (fields: TypeField[], path: string[] = []) => {
+  // Memoize the field rendering function to prevent unnecessary re-renders
+  const renderFieldsTree = useCallback((fields: TypeField[], path: string[] = []) => {
     return (
       <div className="space-y-1">
         {fields.map((field, index) => (
@@ -60,6 +68,7 @@ const FieldsTree = ({ fields, onFieldsChange, sourceId }: FieldsTreeProps) => {
             field={field}
             index={index}
             path={path}
+            isLoading={loadingFields.includes(field.name)}
             toggleSubfields={toggleSubfields}
             toggleFieldSelection={toggleFieldSelection}
             handleArgumentChange={handleArgumentChange}
@@ -68,9 +77,12 @@ const FieldsTree = ({ fields, onFieldsChange, sourceId }: FieldsTreeProps) => {
         ))}
       </div>
     );
-  };
+  }, [loadingFields, toggleSubfields, toggleFieldSelection, handleArgumentChange]);
 
-  return renderFieldsTree(fields);
+  // Memoize the entire tree to prevent unnecessary re-renders
+  const memoizedFieldsTree = useMemo(() => renderFieldsTree(fields), [fields, renderFieldsTree]);
+
+  return memoizedFieldsTree;
 };
 
 export default FieldsTree;
