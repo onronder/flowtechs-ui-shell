@@ -120,31 +120,33 @@ export default function SourceList() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-full">
       {loading ? (
-        <div className="flex justify-center my-8">
+        <div className="flex justify-center items-center flex-1 py-12">
           <RefreshCw className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : sources.length === 0 ? (
-        <div className="bg-muted/50 rounded-lg p-8 flex flex-col items-center justify-center text-center space-y-4">
-          <div className="bg-primary/10 p-4 rounded-full">
-            <ExternalLink className="h-8 w-8 text-primary" />
+        <div className="bg-muted/30 rounded-lg p-8 flex flex-col items-center justify-center text-center h-[calc(100vh-300px)] space-y-6">
+          <div className="bg-primary/10 p-6 rounded-full">
+            <ExternalLink className="h-12 w-12 text-primary" />
           </div>
-          <h3 className="text-xl font-medium">No Shopify sources added yet</h3>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            Connect to Shopify stores to start importing data for analysis and integration with other systems.
-          </p>
+          <div className="max-w-md">
+            <h3 className="text-2xl font-medium mb-3">No Shopify sources added yet</h3>
+            <p className="text-muted-foreground text-lg">
+              Connect to Shopify stores to start importing data for analysis and integration with other systems.
+            </p>
+          </div>
           <Button 
             onClick={() => navigate('/sources/new')} 
             size="lg"
-            className="mt-4"
+            className="mt-6"
           >
             <PlusCircle className="mr-2 h-5 w-5" />
             Add Your First Source
           </Button>
         </div>
       ) : (
-        <div className="border rounded-md overflow-hidden">
+        <div className="border rounded-md overflow-hidden flex-1">
           <Table>
             <TableHeader>
               <TableRow>

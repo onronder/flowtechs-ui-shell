@@ -59,7 +59,7 @@ const Sources = () => {
   };
 
   return (
-    <div className="animate-fade-in space-y-4">
+    <div className="animate-fade-in space-y-4 h-full flex flex-col">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Sources</h1>
@@ -73,27 +73,27 @@ const Sources = () => {
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col">
         <TabsList className="w-full max-w-md mx-auto grid grid-cols-3">
           <TabsTrigger value="sources">Shopify Sources</TabsTrigger>
           <TabsTrigger value="activity">Connection Activity</TabsTrigger>
           <TabsTrigger value="monitoring">Monitoring Dashboard</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="sources" className="mt-6">
+        <TabsContent value="sources" className="mt-6 flex-1 flex flex-col">
           <SourceList />
         </TabsContent>
         
-        <TabsContent value="activity" className="mt-6">
+        <TabsContent value="activity" className="mt-6 flex-1">
           <ConnectionLogView />
         </TabsContent>
         
-        <TabsContent value="monitoring" className="mt-6">
+        <TabsContent value="monitoring" className="mt-6 flex-1">
           {selectedSourceId ? (
             <ConnectionMonitoringDashboard sourceId={selectedSourceId} />
           ) : (
-            <Card>
-              <CardContent className="pt-6 text-center">
+            <Card className="flex-1 flex items-center justify-center">
+              <CardContent className="pt-6 text-center max-w-lg">
                 <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground" />
                 <h3 className="mt-4 text-lg font-medium">No Source Selected</h3>
                 <p className="mt-2 text-muted-foreground">
