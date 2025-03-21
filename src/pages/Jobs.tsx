@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { supabase, Dataset } from "@/integrations/supabase/client";
+import { supabase, Dataset, convertToDataset } from "@/integrations/supabase/client";
 import { AlertCircle, CalendarClock, CheckCircle, PlayCircle, XCircle } from "lucide-react";
 
 const Jobs = () => {
@@ -40,25 +39,7 @@ const Jobs = () => {
         if (error) throw error;
         
         // Convert database items to Dataset type with proper type handling
-        setDatasets((data || []).map(item => {
-          const dataset: Dataset = {
-            ...item,
-            extraction_settings: item.extraction_settings ? {
-              batch_size: item.extraction_settings.batch_size || 100,
-              max_retries: item.extraction_settings.max_retries || 3,
-              throttle_delay_ms: item.extraction_settings.throttle_delay_ms || 1000,
-              circuit_breaker_threshold: item.extraction_settings.circuit_breaker_threshold || 5,
-              timeout_seconds: item.extraction_settings.timeout_seconds || 30,
-              concurrent_requests: item.extraction_settings.concurrent_requests || 2,
-              deduplication_enabled: item.extraction_settings.deduplication_enabled || false,
-              cache_enabled: item.extraction_settings.cache_enabled || false,
-              field_optimization: item.extraction_settings.field_optimization || false
-            } : null,
-            performance_metrics: null // Initialize with null
-          };
-          
-          return dataset;
-        }));
+        setDatasets((data || []).map(item => convertToDataset(item)));
       } catch (error) {
         console.error('Error fetching datasets:', error);
         toast({

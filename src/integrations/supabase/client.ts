@@ -47,8 +47,7 @@ export type Dataset = {
   last_completed_run: string | null;
   last_run_duration: number | null;
   error_message: string | null;
-  // Make extraction_settings properly typed but optional
-  extraction_settings?: {
+  extraction_settings: {
     batch_size: number;
     max_retries: number;
     throttle_delay_ms: number;
@@ -61,8 +60,7 @@ export type Dataset = {
   } | null;
   extraction_progress: number | null;
   last_error_details: Record<string, any> | null;
-  // Make performance_metrics optional
-  performance_metrics?: {
+  performance_metrics: {
     records_per_second: number;
     api_calls_per_record: number;
     average_response_time: number;
@@ -109,6 +107,38 @@ export type RateLimitInfo = {
   maximum: number;
   restoreRate: number;
   requestCost: number;
+};
+
+// Helper function to convert database JSON to typed extraction settings
+export const parseExtractionSettings = (settings: any): Dataset['extraction_settings'] => {
+  if (!settings) return null;
+  
+  return {
+    batch_size: Number(settings.batch_size || 100),
+    max_retries: Number(settings.max_retries || 3),
+    throttle_delay_ms: Number(settings.throttle_delay_ms || 1000),
+    circuit_breaker_threshold: Number(settings.circuit_breaker_threshold || 5),
+    timeout_seconds: Number(settings.timeout_seconds || 30),
+    concurrent_requests: Number(settings.concurrent_requests || 2),
+    deduplication_enabled: Boolean(settings.deduplication_enabled || false),
+    cache_enabled: Boolean(settings.cache_enabled || false),
+    field_optimization: Boolean(settings.field_optimization || false)
+  };
+};
+
+// Helper function to convert database row to Dataset type
+export const convertToDataset = (item: any): Dataset => {
+  return {
+    ...item,
+    query_details: typeof item.query_details === 'string' 
+      ? JSON.parse(item.query_details) 
+      : (item.query_details || null),
+    extraction_settings: parseExtractionSettings(item.extraction_settings),
+    performance_metrics: item.performance_metrics || null,
+    last_error_details: typeof item.last_error_details === 'string'
+      ? JSON.parse(item.last_error_details)
+      : (item.last_error_details || null)
+  };
 };
 
 // Utility functions for metadata handling
