@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase, convertToDataset, Dataset } from '@/integrations/supabase/client';
-import { VirtualizedDataTable } from '@/components/data-visualization/VirtualizedDataTable';
+import { VirtualizedDataTable, VirtualizedColumn } from '@/components/data-visualization/VirtualizedDataTable';
 import { ShopifyDataViewer } from '@/components/data-visualization/ShopifyDataViewer';
 import { 
   createDataWorker, 
@@ -117,6 +117,17 @@ const DatasetMetrics = ({ dataset, data }: { dataset: Dataset; data: any[] }) =>
       updatedRecordsLastWeek: updatedCount,
     };
   }, [data]);
+
+  // Generate columns for anomaly data table
+  const anomalyColumns: VirtualizedColumn<any>[] = useMemo(() => {
+    if (!anomalies.length) return [];
+    
+    return Object.keys(anomalies[0] || {}).map(key => ({
+      header: key,
+      accessorKey: key,
+      sortable: true
+    }));
+  }, [anomalies]);
   
   return (
     <Card>
@@ -191,6 +202,7 @@ const DatasetMetrics = ({ dataset, data }: { dataset: Dataset; data: any[] }) =>
               <div className="max-h-[300px] overflow-auto">
                 <VirtualizedDataTable
                   data={anomalies}
+                  columns={anomalyColumns}
                   loadingStatus="success"
                   containerHeight={300}
                   rowHeight={40}
