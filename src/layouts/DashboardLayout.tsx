@@ -24,11 +24,14 @@ const DashboardLayout = () => {
         <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
         <main
           className={cn(
-            "flex-1 overflow-y-auto p-4 transition-all duration-200 ease-in-out",
-            sidebarOpen && !isMobile ? "ml-64" : "ml-0"
+            "flex-1 overflow-y-auto p-6 md:p-8 transition-all duration-200 ease-in-out",
+            sidebarOpen && !isMobile ? "ml-64" : "ml-0",
+            "flex flex-col"
           )}
         >
-          <Outlet />
+          <div className="max-w-screen-2xl w-full mx-auto">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
