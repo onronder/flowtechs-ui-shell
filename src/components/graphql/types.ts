@@ -168,3 +168,110 @@ export interface ExtractionMetrics {
   rateLimitRemaining?: number;
   rateLimitUsed?: number;
 }
+
+// New types for requested components
+
+// ShopifyDataTable types
+export interface ShopifyDataTableProps {
+  data: any[];
+  columns: DataTableColumn[];
+  pagination?: PaginationOptions;
+  loading?: boolean;
+  error?: string;
+  onRowClick?: (row: any) => void;
+}
+
+export interface DataTableColumn {
+  id: string;
+  header: string;
+  accessorKey?: string;
+  accessorFn?: (row: any) => any;
+  cell?: (info: { getValue: () => any; row: { original: any } }) => React.ReactNode;
+  enableSorting?: boolean;
+  enableFiltering?: boolean;
+}
+
+export interface PaginationOptions {
+  pageSize: number;
+  pageIndex: number;
+  pageCount?: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+}
+
+// NestedJsonViewer types
+export interface NestedJsonViewerProps {
+  data: any;
+  expandedByDefault?: boolean;
+  maxDepth?: number;
+  searchEnabled?: boolean;
+  pathCopyEnabled?: boolean;
+}
+
+// Error Handling types
+export type ShopifyErrorType = 
+  | 'AUTHENTICATION'
+  | 'AUTHORIZATION'
+  | 'NOT_FOUND'
+  | 'VALIDATION'
+  | 'QUERY_COMPLEXITY'
+  | 'INTERNAL_SERVER'
+  | 'THROTTLED'
+  | 'USER_ERROR'
+  | 'NETWORK'
+  | 'UNKNOWN';
+
+export interface ShopifyErrorClassification {
+  type: ShopifyErrorType;
+  message: string;
+  retryable: boolean;
+  suggestedAction?: string;
+}
+
+// Rate Limiter types
+export interface RateLimitConfig {
+  maxTokens: number;
+  refillRate: number;
+  refillInterval: number;
+  queueSize?: number;
+  timeout?: number;
+}
+
+export interface RateLimitState {
+  tokens: number;
+  lastRefill: number;
+  queuedRequests: number;
+}
+
+// Extraction Management types
+export interface ExtractionJob {
+  id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  started: string;
+  completed?: string;
+  error?: string;
+  config: Record<string, any>;
+  type: string;
+  results?: any;
+}
+
+// Dataset Diff types
+export interface DatasetDiff {
+  addedRecords: number;
+  removedRecords: number;
+  changedRecords: number;
+  unchangedRecords: number;
+  changes: RecordChange[];
+}
+
+export interface RecordChange {
+  id: string;
+  changeType: 'added' | 'removed' | 'changed';
+  path?: string[];
+  oldValue?: any;
+  newValue?: any;
+}
+
+// Type for selected fields (simpler to avoid deep recursion)
+export type SelectedFieldsMapType = Record<string, Set<string>>;
