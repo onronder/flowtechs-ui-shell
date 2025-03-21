@@ -1,11 +1,13 @@
 
-import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const ProtectedRoute: React.FC = () => {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
 
+  // Check for authentication and loading state
   if (isLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center">
@@ -14,9 +16,11 @@ export const ProtectedRoute: React.FC = () => {
     );
   }
 
+  // If not authenticated, redirect to sign-in page with the return URL
   if (!user) {
-    return <Navigate to="/auth/signin" replace />;
+    return <Navigate to="/auth/signin" state={{ from: location.pathname }} replace />;
   }
 
+  // If authenticated, render the child routes
   return <Outlet />;
 };

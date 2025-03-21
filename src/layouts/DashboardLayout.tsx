@@ -6,7 +6,6 @@ import { UserMenu } from "@/components/auth/UserMenu";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
-import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
 const DashboardLayout = () => {

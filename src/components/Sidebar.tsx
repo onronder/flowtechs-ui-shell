@@ -1,5 +1,5 @@
 
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -17,8 +17,9 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
-const navigation = [
+const navigationItems = [
   {
     title: "Dashboard",
     icon: LayoutDashboard,
@@ -77,11 +78,6 @@ const navigation = [
     icon: SettingsIcon,
     href: "/settings",
   },
-  {
-    title: "Log Out",
-    icon: LogOut,
-    href: "/auth/signin",
-  },
 ];
 
 interface SidebarProps {
@@ -91,6 +87,18 @@ interface SidebarProps {
 
 export default function Sidebar({ open, setOpen }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+  
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await signOut();
+      // The redirect will be handled in the auth context
+    } catch (error) {
+      console.error("Failed to log out:", error);
+    }
+  };
   
   return (
     <aside
@@ -127,7 +135,7 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
       </div>
       <nav className="flex-1 overflow-y-auto p-2">
         <ul className="flex flex-col gap-1">
-          {navigation.map((item, index) => {
+          {navigationItems.map((item, index) => {
             if (item.divider) {
               return <Separator key={index} className="my-2" />;
             }
@@ -150,6 +158,20 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
               </li>
             );
           })}
+          
+          {/* Logout item */}
+          <li>
+            <button
+              onClick={handleLogout}
+              className={cn(
+                "nav-item w-full text-left",
+                !open && "justify-center px-2"
+              )}
+            >
+              <LogOut className="h-5 w-5" />
+              {open && <span>Log Out</span>}
+            </button>
+          </li>
         </ul>
       </nav>
     </aside>
