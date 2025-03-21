@@ -13,10 +13,30 @@ export const useSourceFormLogic = () => {
   const [connectionStatus, setConnectionStatus] = useState<null | 'success' | 'error'>(null);
   const [connectionMessage, setConnectionMessage] = useState('');
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditing = !!id;
+
+  // Check if Supabase is properly configured
+  useEffect(() => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    const isConfigured = 
+      supabaseUrl && 
+      supabaseKey && 
+      !supabaseUrl.includes('placeholder') && 
+      !supabaseKey.includes('placeholder');
+    
+    setIsSupabaseConfigured(isConfigured);
+    
+    if (!isConfigured) {
+      setConnectionError('Supabase connection is not properly configured');
+    }
+  }, []);
 
   const form = useForm<SourceFormValues>({
     resolver: zodResolver(shopifySourceSchema),
@@ -42,6 +62,10 @@ export const useSourceFormLogic = () => {
   }, [isEditing]);
 
   const fetchSourceData = async () => {
+    if (!isSupabaseConfigured) {
+      return;
+    }
+    
     try {
       setLoading(true);
       
@@ -97,6 +121,7 @@ export const useSourceFormLogic = () => {
       
     } catch (error) {
       console.error('Error fetching source data:', error);
+      setConnectionError('Failed to load source data');
       toast({
         variant: 'destructive',
         title: 'Failed to load source data',
@@ -108,10 +133,16 @@ export const useSourceFormLogic = () => {
   };
 
   const testConnection = async (values: SourceFormValues) => {
+    if (!isSupabaseConfigured) {
+      setConnectionError('Supabase connection is not properly configured');
+      return;
+    }
+    
     try {
       setTestingConnection(true);
       setConnectionStatus(null);
       setConnectionMessage('');
+      setConnectionError(null);
       
       let customHeaders = {};
       try {
@@ -166,6 +197,7 @@ export const useSourceFormLogic = () => {
       console.error('Error testing connection:', error);
       setConnectionStatus('error');
       setConnectionMessage((error as Error).message || 'Connection test failed.');
+      setConnectionError((error as Error).message || 'Connection test failed');
       
       toast({
         variant: 'destructive',
@@ -178,8 +210,14 @@ export const useSourceFormLogic = () => {
   };
 
   const onSubmit = async (values: SourceFormValues) => {
+    if (!isSupabaseConfigured) {
+      setConnectionError('Supabase connection is not properly configured');
+      return;
+    }
+    
     try {
       setLoading(true);
+      setConnectionError(null);
       
       let customHeaders = {};
       try {
@@ -227,6 +265,8 @@ export const useSourceFormLogic = () => {
       navigate('/sources');
     } catch (error) {
       console.error('Error saving source:', error);
+      setConnectionError((error as Error).message || 'Failed to save source');
+      
       toast({
         variant: 'destructive',
         title: 'Failed to save source',
@@ -247,6 +287,8 @@ export const useSourceFormLogic = () => {
     isEditing,
     navigate,
     testConnection,
-    onSubmit
+    onSubmit,
+    connectionError,
+    isSupabaseConfigured
   };
 };
