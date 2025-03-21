@@ -138,6 +138,18 @@ Deno.serve(async (req) => {
     // Get the user ID from various sources
     const userId = await extractUserId(req);
     
+    // Ensure userId is not null or empty
+    if (!userId) {
+      console.error('Failed to extract a valid user ID');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Unable to determine user ID. Authentication required.',
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     // Parse request body
     let sourceData;
     try {
