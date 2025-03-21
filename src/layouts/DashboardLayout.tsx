@@ -4,20 +4,20 @@ import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { cn } from "@/lib/utils";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
 const DashboardLayout = () => {
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const { user } = useAuth();
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar 
-        isSidebarOpen={sidebarOpen} 
+        sidebarOpen={sidebarOpen} 
         toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
         userMenuSlot={<UserMenu />}
       />

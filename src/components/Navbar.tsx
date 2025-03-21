@@ -8,10 +8,11 @@ import { Link } from "react-router-dom";
 
 interface NavbarProps {
   sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
+  toggleSidebar: () => void;
+  userMenuSlot?: React.ReactNode;
 }
 
-const Navbar = ({ sidebarOpen, setSidebarOpen }: NavbarProps) => {
+const Navbar = ({ sidebarOpen, toggleSidebar, userMenuSlot }: NavbarProps) => {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6 glass-effect">
       <Button
@@ -19,7 +20,7 @@ const Navbar = ({ sidebarOpen, setSidebarOpen }: NavbarProps) => {
         size="icon"
         aria-label="Toggle sidebar"
         className="md:hidden"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
+        onClick={toggleSidebar}
       >
         {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </Button>
@@ -49,41 +50,43 @@ const Navbar = ({ sidebarOpen, setSidebarOpen }: NavbarProps) => {
 
         <ThemeToggle />
 
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="User menu"
-              className="rounded-full"
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarImage src="" />
-                <AvatarFallback className="text-xs">FT</AvatarFallback>
-              </Avatar>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-60 p-4" align="end">
-            <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium">Demo User</p>
-              <p className="text-xs text-muted-foreground">user@example.com</p>
-            </div>
-            <div className="mt-4 space-y-2">
-              <Link
-                to="/settings"
-                className="block w-full rounded-md px-2 py-1 text-left text-sm hover:bg-muted"
+        {userMenuSlot || (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="User menu"
+                className="rounded-full"
               >
-                Settings
-              </Link>
-              <Link
-                to="/auth/signin"
-                className="block w-full rounded-md px-2 py-1 text-left text-sm hover:bg-muted"
-              >
-                Log out
-              </Link>
-            </div>
-          </PopoverContent>
-        </Popover>
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src="" />
+                  <AvatarFallback className="text-xs">FT</AvatarFallback>
+                </Avatar>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-60 p-4" align="end">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium">Demo User</p>
+                <p className="text-xs text-muted-foreground">user@example.com</p>
+              </div>
+              <div className="mt-4 space-y-2">
+                <Link
+                  to="/settings"
+                  className="block w-full rounded-md px-2 py-1 text-left text-sm hover:bg-muted"
+                >
+                  Settings
+                </Link>
+                <Link
+                  to="/auth/signin"
+                  className="block w-full rounded-md px-2 py-1 text-left text-sm hover:bg-muted"
+                >
+                  Log out
+                </Link>
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
     </header>
   );
