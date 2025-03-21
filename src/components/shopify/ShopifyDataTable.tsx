@@ -61,11 +61,9 @@ const ShopifyDataTable: React.FC<ShopifyDataTableProps> = ({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    getPaginationRowModel: () => 
+      getPaginationRowModel({ pageSize }),
     onSortingChange: setSorting,
-    getPaginationRowModelOptions: {
-      manualPagination: !!pagination,
-    },
     state: {
       sorting,
       pagination: {

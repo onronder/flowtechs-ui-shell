@@ -176,14 +176,11 @@ const NestedJsonViewer: React.FC<NestedJsonViewerProps> = ({
   const [copiedPath, setCopiedPath] = useState<(string | number)[] | null>(null);
 
   const handleCopyPath = useCallback((path: (string | number)[]) => {
-    const pathString = path.reduce((acc, part) => {
-      if (typeof part === 'number') {
-        return `${acc}[${part}]`;
-      } else {
-        return acc ? `${acc}.${part}` : part;
-      }
-    }, '');
-
+    const pathString = path.map(segment => {
+      const segmentStr = String(segment);
+      return !isNaN(Number(segmentStr)) ? `[${segmentStr}]` : `.${segmentStr}`;
+    }).join('').replace(/^\./, '');
+    
     navigator.clipboard.writeText(pathString);
     setCopiedPath(path);
     setTimeout(() => setCopiedPath(null), 2000);

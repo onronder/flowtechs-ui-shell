@@ -21,7 +21,14 @@ const QueryBuilderTabs = () => {
     isExecuting,
     saveDialogOpen,
     setSaveDialogOpen,
-    queryResult
+    queryResult,
+    errorMessage,
+    executionTime,
+    queryVariables,
+    handleVariableChange,
+    templates,
+    loadTemplate,
+    complexity
   } = useQueryBuilder();
 
   const [localTab, setLocalTab] = useState(activeTab);
@@ -86,21 +93,39 @@ const QueryBuilderTabs = () => {
               <CardTitle>Generated GraphQL Query</CardTitle>
             </CardHeader>
             <CardContent>
-              <QueryEditor />
+              <QueryEditor 
+                generatedQuery={generatedQuery}
+                isExecuting={isExecuting}
+                complexity={complexity}
+                onExecute={executeQuery}
+                readOnly={true}
+                height="500px"
+              />
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="variables" className="flex-1 h-full">
-          <QueryVariables />
+          <QueryVariables 
+            variables={queryVariables}
+            onVariableChange={handleVariableChange}
+          />
         </TabsContent>
 
         <TabsContent value="results" className="flex-1 h-full">
-          <QueryResults />
+          <QueryResults 
+            isExecuting={isExecuting}
+            errorMessage={errorMessage}
+            queryResult={queryResult}
+            executionTime={executionTime}
+          />
         </TabsContent>
 
         <TabsContent value="templates" className="flex-1 h-full">
-          <QueryTemplates />
+          <QueryTemplates 
+            templates={templates}
+            onLoadTemplate={loadTemplate}
+          />
         </TabsContent>
       </Tabs>
     </div>
