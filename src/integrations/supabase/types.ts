@@ -463,6 +463,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clean_expired_locks: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       cleanup_locks: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -492,6 +496,12 @@ export type Database = {
           p_ttl_seconds?: number
         }
         Returns: boolean
+      }
+      get_decrypted_source_token: {
+        Args: {
+          source_id: string
+        }
+        Returns: string
       }
       release_lock: {
         Args: {

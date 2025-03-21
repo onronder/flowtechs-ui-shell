@@ -4,15 +4,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SourceList from '@/components/sources/SourceList';
 import ConnectionLogView from '@/components/sources/ConnectionLogView';
 import ConnectionMonitoringDashboard from '@/components/sources/ConnectionMonitoringDashboard';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Plus } from 'lucide-react';
 
 const Sources = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<string>('sources');
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  const navigate = useNavigate();
   
   // Extract source ID from query params if present
   useEffect(() => {
@@ -59,10 +60,18 @@ const Sources = () => {
 
   return (
     <div className="animate-fade-in space-y-4">
-      <h1 className="text-3xl font-bold tracking-tight">Sources</h1>
-      <p className="text-muted-foreground">
-        Manage your data sources and connections.
-      </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Sources</h1>
+          <p className="text-muted-foreground">
+            Manage your data sources and connections.
+          </p>
+        </div>
+        <Button onClick={() => navigate('/sources/new')}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Source
+        </Button>
+      </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">
         <TabsList>

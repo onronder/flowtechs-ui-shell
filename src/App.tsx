@@ -16,6 +16,7 @@ import Settings from '@/pages/Settings';
 import CustomQuery from '@/pages/CustomQuery';
 import EnterpriseVisualization from '@/pages/EnterpriseVisualization';
 import ShopifyTestingPlan from '@/pages/ShopifyTestingPlan';
+import NewSource from '@/pages/NewSource';
 
 import './App.css';
 
@@ -27,6 +28,7 @@ function App() {
       <Route element={<DashboardLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/sources" element={<Sources />} />
+        <Route path="/sources/new" element={<NewSource />} />
         <Route path="/datasets" element={<Datasets />} />
         <Route path="/destinations" element={<Destinations />} />
         <Route path="/transformations" element={<Transformations />} />

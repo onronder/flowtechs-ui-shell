@@ -80,3 +80,47 @@ export const loadSubfields = async (field: TypeField, sourceId: string): Promise
       : new Error(`Failed to load subfields for ${field.name}`);
   }
 };
+
+// Add a new function to directly fetch the latest Shopify API schema version
+export const getLatestShopifyApiVersion = async (): Promise<string> => {
+  try {
+    // This could be enhanced to actually fetch from Shopify's version endpoint
+    // For now we'll return the latest known version
+    return '2024-04';
+  } catch (error) {
+    console.error('Error fetching latest Shopify API version:', error);
+    // Default to a known recent version if the fetch fails
+    return '2024-04';
+  }
+};
+
+// Add a new function to check if we have a cached schema
+export const getShopifySchemaFromCache = async (sourceId: string): Promise<any> => {
+  try {
+    const { data, error } = await supabase
+      .from('api_schemas')
+      .select('*')
+      .eq('source_id', sourceId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (error) {
+      throw error;
+    }
+    
+    if (data && data.schema && new Date(data.cache_valid_until) > new Date()) {
+      console.log('Using cached schema, valid until:', data.cache_valid_until);
+      return {
+        schema: data.schema,
+        apiVersion: data.api_version,
+        fromCache: true
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error checking schema cache:', error);
+    return null;
+  }
+};
