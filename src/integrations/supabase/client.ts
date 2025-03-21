@@ -1,10 +1,8 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// Default to empty string if environmental variables are not available
-// This prevents the "supabaseUrl is required" error during development
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder_key';
+// Using the provided environment variables
+const supabaseUrl = "https://bkhuqrzqbexmgpqbyiir.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJraHVxcnpxYmV4bWdwcWJ5aWlyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjUwOTY5NywiZXhwIjoyMDU4MDg1Njk3fQ.NcZcNFjapIR3H8rqrm0ZblSAkMeKMc3YKnAyLOOX8i0";
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
