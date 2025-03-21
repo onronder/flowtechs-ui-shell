@@ -1,404 +1,232 @@
-
-import React, { useState, useCallback, useMemo } from 'react';
-import { ChevronRight, ChevronDown, Copy, Search, X, ExternalLink } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useEffect, useState, useCallback } from "react";
+import { ChevronDown, ChevronRight, Search, Copy, Check } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 
 interface NestedJsonViewerProps {
   data: any;
-  title?: string;
   expandedByDefault?: boolean;
   maxDepth?: number;
   searchEnabled?: boolean;
   pathCopyEnabled?: boolean;
-  className?: string;
-  height?: string;
 }
 
-interface NodeProps {
-  path: string[];
-  data: any;
-  level: number;
-  isExpanded: boolean;
-  onToggle: (path: string[]) => void;
-  maxDepth: number;
-  searchTerm: string;
-  matchedPaths: Set<string>;
-  onCopyPath: (path: string) => void;
-  pathCopyEnabled: boolean;
+interface JsonNodeProps {
+  keyName: string | number | null;
+  value: any;
+  depth: number;
+  expandedByDefault?: boolean;
+  maxDepth?: number;
+  searchQuery?: string;
+  path?: (string | number)[];
+  onCopyPath?: (path: (string | number)[]) => void;
+  pathCopyEnabled?: boolean;
 }
 
-const getDataType = (data: any): string => {
-  if (data === null) return 'null';
-  if (data === undefined) return 'undefined';
-  if (Array.isArray(data)) return 'array';
-  return typeof data;
-};
-
-const getNodeKey = (path: string[]): string => path.join('.');
-
-const formatValue = (value: any): string => {
-  if (value === null) return 'null';
-  if (value === undefined) return 'undefined';
-  if (typeof value === 'string') return `"${value}"`;
-  if (typeof value === 'object') return '';
-  return String(value);
-};
-
-// The individual node component for each property
-const JsonNode: React.FC<NodeProps> = ({
-  path,
-  data,
-  level,
-  isExpanded,
-  onToggle,
-  maxDepth,
-  searchTerm,
-  matchedPaths,
+const JsonNode: React.FC<JsonNodeProps> = ({
+  keyName,
+  value,
+  depth,
+  expandedByDefault = false,
+  maxDepth = 5,
+  searchQuery = "",
+  path = [],
   onCopyPath,
-  pathCopyEnabled,
+  pathCopyEnabled = false,
 }) => {
-  const nodeKey = getNodeKey(path);
-  const dataType = getDataType(data);
-  const isExpandable = ['object', 'array'].includes(dataType) && data !== null;
-  const hasChildren = isExpandable && Object.keys(data).length > 0;
-  const isSearchMatched = searchTerm && matchedPaths.has(nodeKey);
-  const propertyName = path[path.length - 1];
-  
-  // Hide nodes beyond max depth
-  if (level > maxDepth) return null;
+  const [expanded, setExpanded] = useState(expandedByDefault);
+  const [highlight, setHighlight] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const handleToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (hasChildren) {
-      onToggle(path);
+  const currentPath = keyName !== null ? [...path, keyName] : path;
+
+  useEffect(() => {
+    if (searchQuery && typeof value === 'string' && value.toLowerCase().includes(searchQuery.toLowerCase())) {
+      setHighlight(true);
+    } else if (searchQuery && keyName && typeof keyName === 'string' && keyName.toLowerCase().includes(searchQuery.toLowerCase())) {
+      setHighlight(true);
+    } else {
+      setHighlight(false);
     }
-  };
+  }, [searchQuery, value, keyName]);
 
-  const handleCopyPath = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onCopyPath(nodeKey);
-  };
-
-  // Get the rendered children for expandable nodes
-  const renderedChildren = useMemo(() => {
-    if (isExpandable && hasChildren && isExpanded) {
-      if (Array.isArray(data)) {
-        return data.map((item, index) => (
-          <JsonNode
-            key={`${nodeKey}.${index}`}
-            path={[...path, String(index)]}
-            data={item}
-            level={level + 1}
-            isExpanded={false}
-            onToggle={onToggle}
-            maxDepth={maxDepth}
-            searchTerm={searchTerm}
-            matchedPaths={matchedPaths}
-            onCopyPath={onCopyPath}
-            pathCopyEnabled={pathCopyEnabled}
-          />
-        ));
-      } else {
-        return Object.keys(data).map(key => (
-          <JsonNode
-            key={`${nodeKey}.${key}`}
-            path={[...path, key]}
-            data={data[key]}
-            level={level + 1}
-            isExpanded={false}
-            onToggle={onToggle}
-            maxDepth={maxDepth}
-            searchTerm={searchTerm}
-            matchedPaths={matchedPaths}
-            onCopyPath={onCopyPath}
-            pathCopyEnabled={pathCopyEnabled}
-          />
-        ));
-      }
+  const handleCopyPath = useCallback(() => {
+    if (onCopyPath) {
+      onCopyPath(currentPath);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-    return null;
-  }, [data, hasChildren, isExpanded, isExpandable, level, maxDepth, nodeKey, onCopyPath, onToggle, path, pathCopyEnabled, searchTerm, matchedPaths]);
+  }, [onCopyPath, currentPath]);
 
-  return (
-    <div 
-      className={cn(
-        "pl-5 border-l border-gray-200 dark:border-gray-800",
-        isSearchMatched ? "bg-yellow-100 dark:bg-yellow-900/20" : "",
-        level === 0 ? "border-l-0 pl-0" : ""
-      )}
-    >
-      <div 
-        className="flex items-center py-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded"
-        onClick={handleToggle}
-      >
-        <div style={{ width: '20px' }} className="flex-shrink-0">
-          {hasChildren && (
-            isExpanded ? (
-              <ChevronDown className="h-4 w-4 text-gray-500" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-gray-500" />
-            )
-          )}
-        </div>
-        
-        <div className="font-medium text-sm">
-          {propertyName && (
-            <>
-              <span className="text-blue-600 dark:text-blue-400">{propertyName}</span>
-              <span className="text-gray-500 mx-1">:</span>
-            </>
-          )}
-        </div>
-        
-        <div className="flex items-center">
-          {isExpandable ? (
-            <span 
-              className={cn(
-                "text-sm",
-                dataType === 'array' ? "text-yellow-600 dark:text-yellow-400" : "text-gray-600 dark:text-gray-400"
-              )}
-            >
-              {dataType === 'array' 
-                ? `Array(${Object.keys(data).length})` 
-                : `Object{${Object.keys(data).length}}`}
-            </span>
-          ) : (
-            <span 
-              className={cn(
-                "text-sm",
-                dataType === 'string' ? "text-green-600 dark:text-green-400" : 
-                dataType === 'number' ? "text-purple-600 dark:text-purple-400" :
-                dataType === 'boolean' ? "text-red-600 dark:text-red-400" : 
-                "text-gray-600 dark:text-gray-400"
-              )}
-            >
-              {formatValue(data)}
-            </span>
-          )}
-        </div>
-        
-        {pathCopyEnabled && path.length > 0 && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 ml-2 opacity-0 group-hover:opacity-100 hover:opacity-100"
-                  onClick={handleCopyPath}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Copy path</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+  if (value === null) {
+    return (
+      <div className="pl-2">
+        <span className="text-gray-500">
+          {keyName !== null && (<>{keyName}: </>)}
+          <span className="text-blue-500">null</span>
+        </span>
+      </div>
+    );
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return (
+      <div className="pl-2">
+        <span className="text-gray-500">
+          {keyName !== null && (<>{keyName}: </>)}
+          {typeof value === 'string' && <span className={cn("text-green-500", highlight && "bg-yellow-200")}>"{value}"</span>}
+          {typeof value === 'number' && <span className={cn("text-orange-500", highlight && "bg-yellow-200")}>{value}</span>}
+          {typeof value === 'boolean' && <span className="text-purple-500">{value.toString()}</span>}
+        </span>
+        {pathCopyEnabled && onCopyPath && (
+          <Button variant="ghost" size="icon" onClick={handleCopyPath} disabled={copied}>
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          </Button>
         )}
       </div>
-      
-      {renderedChildren}
+    );
+  }
+
+  if (Array.isArray(value) || typeof value === 'object') {
+    const hasChildren = Array.isArray(value) ? value.length > 0 : Object.keys(value).length > 0;
+
+    if (depth >= maxDepth) {
+      return (
+        <div className="pl-2">
+          <span className="text-gray-500">
+            {keyName !== null && (<>{keyName}: </>)}
+            {Array.isArray(value) ? `Array[${value.length}]` : 'Object'}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <div className="flex items-center">
+          {hasChildren ? (
+            <button onClick={() => setExpanded(!expanded)} className="w-5 h-5 flex items-center justify-center">
+              {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          ) : (
+            <div className="w-5 h-5" />
+          )}
+          <span className="text-gray-500">
+            {keyName !== null && (<>{keyName}: </>)}
+            {Array.isArray(value) ? `Array[${value.length}]` : 'Object'}
+          </span>
+          {pathCopyEnabled && onCopyPath && (
+            <Button variant="ghost" size="icon" onClick={handleCopyPath} disabled={copied}>
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          )}
+        </div>
+        {expanded && (
+          <div className="pl-2">
+            {Array.isArray(value) ? (
+              value.map((item, index) => (
+                <JsonNode
+                  key={index}
+                  keyName={index}
+                  value={item}
+                  depth={depth + 1}
+                  expandedByDefault={expandedByDefault}
+                  maxDepth={maxDepth}
+                  searchQuery={searchQuery}
+                  path={currentPath}
+                  onCopyPath={onCopyPath}
+                  pathCopyEnabled={pathCopyEnabled}
+                />
+              ))
+            ) : (
+              Object.entries(value).map(([key, val]) => (
+                <JsonNode
+                  key={key}
+                  keyName={key}
+                  value={val}
+                  depth={depth + 1}
+                  expandedByDefault={expandedByDefault}
+                  maxDepth={maxDepth}
+                  searchQuery={searchQuery}
+                  path={currentPath}
+                  onCopyPath={onCopyPath}
+                  pathCopyEnabled={pathCopyEnabled}
+                />
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+};
+
+const NestedJsonViewer: React.FC<NestedJsonViewerProps> = ({
+  data,
+  expandedByDefault = false,
+  maxDepth = 5,
+  searchEnabled = false,
+  pathCopyEnabled = false,
+}) => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [copiedPath, setCopiedPath] = useState<(string | number)[] | null>(null);
+
+  const handleCopyPath = useCallback((path: (string | number)[]) => {
+    const pathString = path.reduce((acc, part) => {
+      if (typeof part === 'number') {
+        return `${acc}[${part}]`;
+      } else {
+        return acc ? `${acc}.${part}` : part;
+      }
+    }, '');
+
+    navigator.clipboard.writeText(pathString);
+    setCopiedPath(path);
+    setTimeout(() => setCopiedPath(null), 2000);
+  }, []);
+
+  return (
+    <div className="w-full">
+      {searchEnabled && (
+        <div className="mb-2 flex items-center">
+          <Search className="h-4 w-4 mr-2 text-gray-500" />
+          <Input
+            type="text"
+            placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="max-w-xs"
+          />
+        </div>
+      )}
+      <ScrollArea className="rounded-md border p-2">
+        {data && typeof data === 'object' ? (
+          <JsonNode
+            keyName={null}
+            value={data}
+            depth={0}
+            expandedByDefault={expandedByDefault}
+            maxDepth={maxDepth}
+            searchQuery={searchQuery}
+            path={[]}
+            onCopyPath={pathCopyEnabled ? handleCopyPath : undefined}
+            pathCopyEnabled={pathCopyEnabled}
+          />
+        ) : (
+          <p className="text-red-500">Data must be a valid JSON object.</p>
+        )}
+      </ScrollArea>
+      {copiedPath && (
+        <div className="mt-2 text-sm text-green-500">
+          Path copied to clipboard: {copiedPath.join('.')}
+        </div>
+      )}
     </div>
   );
 };
 
-export function NestedJsonViewer({
-  data,
-  title,
-  expandedByDefault = false,
-  maxDepth = 20,
-  searchEnabled = true,
-  pathCopyEnabled = true,
-  className,
-  height = "500px",
-}: NestedJsonViewerProps) {
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const [searchTerm, setSearchTerm] = useState("");
-  const { toast } = useToast();
-
-  // Find path matches when searching
-  const matchedPaths = useMemo(() => {
-    if (!searchTerm) return new Set<string>();
-    
-    const matches = new Set<string>();
-    
-    const findMatches = (obj: any, currentPath: string[] = []) => {
-      if (obj === null || obj === undefined) return;
-      
-      // Check if the current node matches the search term
-      const nodeKey = currentPath.join(".");
-      if (
-        typeof obj === "string" &&
-        obj.toLowerCase().includes(searchTerm.toLowerCase())
-      ) {
-        matches.add(nodeKey);
-        // Add parent paths as well for context
-        let parentPath = [...currentPath];
-        while (parentPath.length > 0) {
-          parentPath.pop();
-          matches.add(parentPath.join("."));
-        }
-      }
-      
-      // For objects (including arrays), recursively search the children
-      if (typeof obj === "object" && obj !== null) {
-        Object.keys(obj).forEach(key => {
-          if (key.toLowerCase().includes(searchTerm.toLowerCase())) {
-            matches.add([...currentPath, key].join("."));
-            // Add parent paths
-            let parentPath = [...currentPath];
-            while (parentPath.length > 0) {
-              matches.add(parentPath.join("."));
-              parentPath.pop();
-            }
-          }
-          findMatches(obj[key], [...currentPath, key]);
-        });
-      }
-    };
-    
-    findMatches(data);
-    return matches;
-  }, [data, searchTerm]);
-
-  // Auto-expand matched nodes
-  useEffect(() => {
-    if (searchTerm && matchedPaths.size > 0) {
-      setExpandedNodes(prev => new Set([...prev, ...matchedPaths]));
-    }
-  }, [matchedPaths, searchTerm]);
-
-  const handleNodeToggle = useCallback((path: string[]) => {
-    const nodeKey = getNodeKey(path);
-    setExpandedNodes(prev => {
-      const newExpanded = new Set(prev);
-      if (newExpanded.has(nodeKey)) {
-        newExpanded.delete(nodeKey);
-      } else {
-        newExpanded.add(nodeKey);
-      }
-      return newExpanded;
-    });
-  }, []);
-
-  const handleCopyPath = useCallback((path: string) => {
-    navigator.clipboard.writeText(path);
-    toast({
-      title: "Path copied",
-      description: `Copied: ${path}`,
-    });
-  }, [toast]);
-
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-  }, []);
-
-  const clearSearch = useCallback(() => {
-    setSearchTerm("");
-  }, []);
-
-  const expandAll = useCallback(() => {
-    const allPaths = new Set<string>();
-    
-    const collectPaths = (obj: any, currentPath: string[] = []) => {
-      if (obj === null || obj === undefined) return;
-      
-      const nodeKey = currentPath.join(".");
-      if (nodeKey) allPaths.add(nodeKey);
-      
-      if (typeof obj === "object" && obj !== null) {
-        Object.keys(obj).forEach(key => {
-          collectPaths(obj[key], [...currentPath, key]);
-        });
-      }
-    };
-    
-    collectPaths(data);
-    setExpandedNodes(allPaths);
-  }, [data]);
-
-  const collapseAll = useCallback(() => {
-    setExpandedNodes(new Set());
-  }, []);
-
-  return (
-    <Card className={className}>
-      {title && (
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">{title}</CardTitle>
-        </CardHeader>
-      )}
-      
-      <CardContent className="p-0">
-        <div className="p-3 border-b flex flex-wrap items-center gap-2">
-          <div className="flex items-center flex-grow gap-2">
-            {searchEnabled && (
-              <div className="relative flex-grow max-w-md">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search keys and values..."
-                  value={searchTerm}
-                  onChange={handleSearchChange}
-                  className="pl-8 h-8"
-                />
-                {searchTerm && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full"
-                    onClick={clearSearch}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {searchTerm && matchedPaths.size > 0 && (
-              <Badge variant="secondary">
-                {matchedPaths.size} matches
-              </Badge>
-            )}
-            <Button variant="outline" size="sm" onClick={expandAll}>
-              Expand All
-            </Button>
-            <Button variant="outline" size="sm" onClick={collapseAll}>
-              Collapse All
-            </Button>
-          </div>
-        </div>
-        
-        <ScrollArea style={{ height }} className="p-4">
-          {data ? (
-            <JsonNode
-              path={[]}
-              data={data}
-              level={0}
-              isExpanded={expandedByDefault}
-              onToggle={handleNodeToggle}
-              maxDepth={maxDepth}
-              searchTerm={searchTerm}
-              matchedPaths={matchedPaths}
-              onCopyPath={handleCopyPath}
-              pathCopyEnabled={pathCopyEnabled}
-            />
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              No data available
-            </div>
-          )}
-        </ScrollArea>
-      </CardContent>
-    </Card>
-  );
-}
+export default NestedJsonViewer;
