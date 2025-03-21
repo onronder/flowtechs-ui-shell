@@ -19,20 +19,27 @@ export const fetchTemplates = async (sourceId: string): Promise<QueryTemplate[]>
 
     return (data || []).map(template => {
       // Safely cast query_details to the correct type
-      const details = template.query_details as QueryDetailsJson | null;
+      const queryDetails = template.query_details as Json;
+      const details = queryDetails ? {
+        query: typeof queryDetails === 'object' && queryDetails !== null ? (queryDetails as any).query || '' : '',
+        variables: typeof queryDetails === 'object' && queryDetails !== null ? (queryDetails as any).variables || [] : [],
+        complexity: typeof queryDetails === 'object' && queryDetails !== null ? (queryDetails as any).complexity || 0 : 0,
+        execution_count: typeof queryDetails === 'object' && queryDetails !== null ? (queryDetails as any).execution_count : undefined,
+        average_execution_time: typeof queryDetails === 'object' && queryDetails !== null ? (queryDetails as any).average_execution_time : undefined
+      } : { query: '', variables: [], complexity: 0 };
       
       return {
         id: template.id,
         name: template.name,
         description: template.description || '',
-        query: details?.query || '',
-        variables: details?.variables || [],
+        query: details.query,
+        variables: details.variables,
         source_id: sourceId, // Changed from sourceId to source_id to match QueryTemplate interface
         created_at: template.created_at,
         updated_at: template.updated_at,
-        complexity: details?.complexity || 0,
-        execution_count: details?.execution_count,
-        average_execution_time: details?.average_execution_time
+        complexity: details.complexity,
+        execution_count: details.execution_count,
+        average_execution_time: details.average_execution_time
       };
     });
   } catch (error) {
@@ -82,7 +89,12 @@ export const saveTemplateToSupabase = async (
     }
 
     // Convert the saved template to our expected format
-    const details = savedTemplate.query_details as QueryDetailsJson;
+    const queryDetails = savedTemplate.query_details as Json;
+    const details = queryDetails ? {
+      query: typeof queryDetails === 'object' && queryDetails !== null ? (queryDetails as any).query || '' : '',
+      variables: typeof queryDetails === 'object' && queryDetails !== null ? (queryDetails as any).variables || [] : [],
+      complexity: typeof queryDetails === 'object' && queryDetails !== null ? (queryDetails as any).complexity || 0 : 0
+    } : { query: '', variables: [], complexity: 0 };
     
     return {
       id: savedTemplate.id,
