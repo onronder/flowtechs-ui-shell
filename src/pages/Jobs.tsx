@@ -39,8 +39,11 @@ const Jobs = () => {
         
         if (error) throw error;
         
-        // Type assertion to ensure compatibility
-        setDatasets(data as Dataset[]);
+        // Properly handle the optional performance_metrics field
+        setDatasets((data || []).map(item => ({
+          ...item,
+          performance_metrics: item.performance_metrics || null
+        } as Dataset)));
       } catch (error) {
         console.error('Error fetching datasets:', error);
         toast({

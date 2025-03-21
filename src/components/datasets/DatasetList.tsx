@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +77,11 @@ const DatasetList = () => {
       
       if (error) throw error;
       
-      setDatasets(data as Dataset[]);
+      // Properly type cast the data to Dataset[]
+      setDatasets((data || []).map(item => ({
+        ...item,
+        performance_metrics: item.performance_metrics || null
+      } as Dataset)));
     } catch (error) {
       console.error('Error fetching datasets:', error);
       toast({

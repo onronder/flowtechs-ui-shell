@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -74,25 +73,20 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
         if (!data) return;
         
         const mappedTemplates = data.map(item => {
-          // Use explicit type assertions to handle the Json type from Supabase
-          const queryDetailsJson = item.query_details as Json;
-          // Handle both object and string cases for the Json type
-          const queryDetails = typeof queryDetailsJson === 'object' 
-            ? (queryDetailsJson as unknown as QueryDetailsJson)
-            : { query: "", variables: [], complexity: 0 };
+          const queryDetails = item.query_details as Record<string, any> | null;
           
           return {
             id: item.id,
             name: item.name,
             description: item.description,
-            query: queryDetails.query || "",
-            variables: queryDetails.variables || [],
-            complexity: queryDetails.complexity || 0,
+            query: queryDetails?.query || "",
+            variables: queryDetails?.variables || [],
+            complexity: queryDetails?.complexity || 0,
             source_id: sourceId,
             created_at: item.created_at,
             updated_at: item.updated_at,
-            execution_count: queryDetails.execution_count,
-            average_execution_time: queryDetails.average_execution_time
+            execution_count: queryDetails?.execution_count,
+            average_execution_time: queryDetails?.average_execution_time
           } as QueryTemplate;
         });
         
@@ -169,7 +163,6 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
 
   const saveTemplate = async (data: any) => {
     try {
-      // Create query details that will be compatible with Json type
       const queryDetailsObject = {
         query: generatedQuery,
         variables: queryVariables.map(v => ({
@@ -185,7 +178,7 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
         description: data.templateDescription,
         query_type: "custom" as const,
         query_name: queryName,
-        query_details: queryDetailsObject as unknown as Json,
+        query_details: queryDetailsObject,
         source_id: sourceId
       };
 
@@ -199,19 +192,15 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
       
       if (!savedTemplate) throw new Error("No template data returned from insert");
       
-      // Handle query details from the saved template
-      const rawQueryDetails = savedTemplate.query_details as Json;
-      const queryDetails = typeof rawQueryDetails === 'object' 
-        ? (rawQueryDetails as unknown as QueryDetailsJson)
-        : { query: "", variables: [], complexity: 0 };
+      const queryDetails = savedTemplate.query_details as Record<string, any> | null;
       
       const mappedTemplate: QueryTemplate = {
         id: savedTemplate.id,
         name: savedTemplate.name,
         description: savedTemplate.description,
-        query: queryDetails.query || "",
-        variables: queryDetails.variables || [],
-        complexity: queryDetails.complexity || 0,
+        query: queryDetails?.query || "",
+        variables: queryDetails?.variables || [],
+        complexity: queryDetails?.complexity || 0,
         source_id: sourceId,
         created_at: savedTemplate.created_at,
         updated_at: savedTemplate.updated_at
@@ -426,6 +415,7 @@ const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
                   <QueryEditor 
                     generatedQuery={generatedQuery}
                     isExecuting={isExecuting}
+                    complexity={complexity}
                     onExecute={executeQuery}
                     onCopy={copyToClipboard}
                     onSave={() => setSaveDialogOpen(true)}

@@ -53,7 +53,11 @@ const DatasetView = () => {
           filter: `id=eq.${id}`
         },
         (payload) => {
-          setDataset(payload.new as Dataset);
+          const updatedData = payload.new as any;
+          setDataset({
+            ...updatedData,
+            performance_metrics: updatedData.performance_metrics || null
+          } as Dataset);
         }
       )
       .subscribe();
@@ -74,7 +78,12 @@ const DatasetView = () => {
         .single();
         
       if (error) throw error;
-      setDataset(data as Dataset);
+      
+      // Properly handle the optional performance_metrics field
+      setDataset({
+        ...data,
+        performance_metrics: data.performance_metrics || null
+      } as Dataset);
     } catch (error) {
       console.error('Error fetching dataset:', error);
       toast({

@@ -61,7 +61,7 @@ export type Dataset = {
     field_optimization: boolean;
   } | null;
   last_error_details: Record<string, any> | null;
-  performance_metrics: {
+  performance_metrics?: {
     records_per_second: number;
     api_calls_per_record: number;
     average_response_time: number;

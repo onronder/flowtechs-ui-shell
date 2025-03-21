@@ -21,7 +21,6 @@ max_client_conn = 100
 
 [realtime]
 enabled = true
-notify_commit_event_interval_ms = 100
 
 [studio]
 enabled = true
@@ -61,16 +60,5 @@ enable_signup = true
 enable_confirmations = true
 template = 'Your code is {{ .Code }} '
 
-[edge.functions]
-[edge.functions.execute-shopify-query]
-verify_jwt = true
-[edge.functions.extract-dependent-data]
-verify_jwt = true
-[edge.functions.extract-shopify-data]
-verify_jwt = true
-[edge.functions.shop_execute_query]
-verify_jwt = true
-[edge.functions.shop_extract_predefined]
-verify_jwt = true
-[edge.functions.shop_fetch_schema]
+[functions]
 verify_jwt = true
