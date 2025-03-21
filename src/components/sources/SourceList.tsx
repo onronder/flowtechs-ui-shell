@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -120,40 +121,36 @@ export default function SourceList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Shopify Sources</h2>
-        <Button onClick={() => navigate('/sources/new')} className="whitespace-nowrap">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Source
-        </Button>
-      </div>
-
       {loading ? (
         <div className="flex justify-center my-8">
           <RefreshCw className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : sources.length === 0 ? (
-        <div className="bg-muted rounded-lg p-6 flex flex-col items-center justify-center text-center space-y-3">
-          <div className="bg-primary/10 p-3 rounded-full">
-            <ExternalLink className="h-6 w-6 text-primary" />
+        <div className="bg-muted/50 rounded-lg p-8 flex flex-col items-center justify-center text-center space-y-4">
+          <div className="bg-primary/10 p-4 rounded-full">
+            <ExternalLink className="h-8 w-8 text-primary" />
           </div>
-          <h3 className="text-lg font-medium">No Shopify sources added yet</h3>
-          <p className="text-muted-foreground max-w-sm">
+          <h3 className="text-xl font-medium">No Shopify sources added yet</h3>
+          <p className="text-muted-foreground max-w-md mx-auto">
             Connect to Shopify stores to start importing data for analysis and integration with other systems.
           </p>
-          <Button onClick={() => navigate('/sources/new')} className="mt-4">
-            <PlusCircle className="mr-2 h-4 w-4" />
+          <Button 
+            onClick={() => navigate('/sources/new')} 
+            size="lg"
+            className="mt-4"
+          >
+            <PlusCircle className="mr-2 h-5 w-5" />
             Add Your First Source
           </Button>
         </div>
       ) : (
-        <div className="border rounded-md">
+        <div className="border rounded-md overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Store</TableHead>
-                <TableHead className="w-24">Status</TableHead>
+                <TableHead className="w-32">Status</TableHead>
                 <TableHead>Last Connected</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -180,29 +177,32 @@ export default function SourceList() {
                       <span className="text-sm text-muted-foreground">Never</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
                       <Button 
                         variant="ghost" 
-                        size="icon" 
+                        size="sm"
                         onClick={() => refreshConnection(source.id)}
                         disabled={refreshing[source.id]}
+                        className="h-8 px-2"
                       >
                         <RefreshCw className={`h-4 w-4 ${refreshing[source.id] ? 'animate-spin' : ''}`} />
                         <span className="sr-only">Refresh</span>
                       </Button>
                       <Button 
                         variant="ghost" 
-                        size="icon"
+                        size="sm"
                         onClick={() => navigate(`/sources/edit/${source.id}`)}
+                        className="h-8 px-2"
                       >
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit</span>
                       </Button>
                       <Button 
                         variant="ghost" 
-                        size="icon"
+                        size="sm"
                         onClick={() => deleteSource(source.id)}
+                        className="h-8 px-2 text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                         <span className="sr-only">Delete</span>
@@ -217,4 +217,4 @@ export default function SourceList() {
       )}
     </div>
   );
-}
+};

@@ -67,28 +67,28 @@ const Sources = () => {
             Manage your data sources and connections.
           </p>
         </div>
-        <Button onClick={() => navigate('/sources/new')}>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button onClick={() => navigate('/sources/new')} size="lg" className="gap-2">
+          <Plus className="h-5 w-5" />
           Add Source
         </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">
-        <TabsList>
+        <TabsList className="w-full max-w-md mx-auto grid grid-cols-3">
           <TabsTrigger value="sources">Shopify Sources</TabsTrigger>
           <TabsTrigger value="activity">Connection Activity</TabsTrigger>
           <TabsTrigger value="monitoring">Monitoring Dashboard</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="sources" className="mt-4">
+        <TabsContent value="sources" className="mt-6">
           <SourceList />
         </TabsContent>
         
-        <TabsContent value="activity" className="mt-4">
+        <TabsContent value="activity" className="mt-6">
           <ConnectionLogView />
         </TabsContent>
         
-        <TabsContent value="monitoring" className="mt-4">
+        <TabsContent value="monitoring" className="mt-6">
           {selectedSourceId ? (
             <ConnectionMonitoringDashboard sourceId={selectedSourceId} />
           ) : (
