@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, convertToDataset } from "@/integrations/supabase/client";
 import SchemaExplorer from "./SchemaExplorer";
 import FieldsTree from "./FieldsTree";
 import QueryVariables from "./QueryVariables";
@@ -40,13 +41,16 @@ interface QueryBuilderProps {
   sourceId: string;
 }
 
+// Define a simpler SelectedFieldsType to avoid excessive type recursion
+type SelectedFieldsType = Record<string, Set<string>>;
+
 const QueryBuilder = ({ sourceId }: QueryBuilderProps) => {
   const { toast } = useToast();
   const [selectedType, setSelectedType] = useState<any>(null);
   const [fields, setFields] = useState<TypeField[]>([]);
   const [generatedQuery, setGeneratedQuery] = useState("");
   const [queryVariables, setQueryVariables] = useState<QueryVariable[]>([]);
-  const [selectedFields, setSelectedFields] = useState<Record<string, Set<string>>>({});
+  const [selectedFields, setSelectedFields] = useState<SelectedFieldsType>({});
   const [queryName, setQueryName] = useState("myQuery");
   const [activeTab, setActiveTab] = useState("builder");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
