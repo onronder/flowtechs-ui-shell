@@ -72,7 +72,7 @@ const Sources = () => {
         </TabsList>
         
         <TabsContent value="sources" className="mt-4">
-          <SourceList onSourceSelect={handleSourceSelect} />
+          <SourceList />
         </TabsContent>
         
         <TabsContent value="activity" className="mt-4">
