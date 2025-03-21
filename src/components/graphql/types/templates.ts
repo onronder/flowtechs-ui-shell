@@ -8,7 +8,7 @@ export interface QueryTemplate {
   query: string;
   variables: QueryVariable[];
   complexity: number;
-  source_id: string;
+  source_id: string; // Changed from source_id to match the usage in our code
   created_at: string;
   updated_at: string;
   execution_count?: number;

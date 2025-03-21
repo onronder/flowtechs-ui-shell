@@ -1,14 +1,15 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { QueryTemplate, QueryVariable } from "../types";
+import { Json } from "@/integrations/supabase/types";
 
 export const fetchTemplates = async (sourceId: string): Promise<QueryTemplate[]> => {
   try {
-    // Use the correct table name based on our database schema
+    // Use the correct table name and query_type based on our database schema
     const { data, error } = await supabase
       .from('dataset_templates')
       .select('*')
-      .eq('query_type', 'graphql')
+      .eq('query_type', 'custom')  // Changed from 'graphql' to 'custom' as per the allowed enum values
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -22,7 +23,7 @@ export const fetchTemplates = async (sourceId: string): Promise<QueryTemplate[]>
       description: template.description || '',
       query: template.query_details?.query || '',
       variables: template.query_details?.variables || [],
-      sourceId: sourceId,
+      source_id: sourceId, // Changed from sourceId to source_id to match QueryTemplate interface
       created_at: template.created_at,
       updated_at: template.updated_at,
       complexity: template.query_details?.complexity || 0
@@ -42,14 +43,21 @@ export const saveTemplateToSupabase = async (
   sourceId: string
 ): Promise<QueryTemplate | null> => {
   try {
+    // Convert variables to a format compatible with Supabase's Json type
+    const safeVariables = variables.map(v => ({
+      name: v.name,
+      type: v.type,
+      defaultValue: v.defaultValue
+    }));
+
     const templateData = {
       name: data.name,
       description: data.description,
-      query_type: 'graphql',
+      query_type: 'custom' as const, // Use 'custom' as the query type with type assertion
       query_name: queryName,
       query_details: {
         query,
-        variables,
+        variables: safeVariables,
         complexity,
         sourceId
       }
@@ -66,13 +74,14 @@ export const saveTemplateToSupabase = async (
       throw error;
     }
 
+    // Convert the saved template to our expected format
     return {
       id: savedTemplate.id,
       name: savedTemplate.name,
       description: savedTemplate.description || '',
       query: savedTemplate.query_details.query,
       variables: savedTemplate.query_details.variables,
-      sourceId,
+      source_id: sourceId, // Changed from sourceId to source_id
       created_at: savedTemplate.created_at,
       updated_at: savedTemplate.updated_at,
       complexity: savedTemplate.query_details.complexity
