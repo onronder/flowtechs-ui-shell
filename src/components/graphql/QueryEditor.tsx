@@ -3,6 +3,7 @@ import { Copy, Save, PlayCircle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { QueryEditorProps } from "./types/components";
 import {
   Tooltip,
   TooltipContent,
@@ -10,24 +11,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-interface QueryEditorProps {
-  generatedQuery: string;
-  isExecuting: boolean;
-  complexity: number;
-  onExecute: () => void;
-  onCopy: (text: string) => void;
-  onSave: () => void;
-  onDownload?: () => void;
-}
-
 const QueryEditor = ({ 
   generatedQuery, 
   isExecuting,
   complexity,
   onExecute, 
-  onCopy, 
-  onSave,
-  onDownload 
+  onCopy = () => {}, 
+  onSave = () => {},
+  onDownload,
+  height = "calc(100vh-20rem)" 
 }: QueryEditorProps) => {
   const getComplexityColor = () => {
     if (complexity < 10) return "text-green-500";
@@ -125,7 +117,7 @@ const QueryEditor = ({
       
       <Card>
         <CardContent className="p-0">
-          <ScrollArea className="h-[calc(100vh-20rem)]">
+          <ScrollArea className={`h-[${height}]`}>
             <pre className="font-mono text-sm p-4 overflow-x-auto whitespace-pre">
               {generatedQuery}
             </pre>

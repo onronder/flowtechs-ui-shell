@@ -1,220 +1,103 @@
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { ShopifyDataTable } from "./ShopifyDataTable";
-import { NestedJsonViewer } from "./NestedJsonViewer";
-import { LargeDatasetViewer } from "./LargeDatasetViewer";
-import { createShopifyClient } from "@/utils/shopify/shopifyClient";
-import { optimizeGraphQLQuery, estimateQueryComplexity } from "@/utils/shopify/queryOptimizer";
-import { AlertCircle, Info } from "lucide-react";
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PlayCircle, FileJson, Table } from 'lucide-react';
+import ShopifyDataTable from "./ShopifyDataTable";
+import NestedJsonViewer from "./NestedJsonViewer";
 
-interface ShopifyComponentsProps {
-  sourceId: string;
-}
+export const ShopifyStoreQuery = ({ client, query, variables = {}, columns }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState('table');
 
-export default function ShopifyComponents({ sourceId }: ShopifyComponentsProps) {
-  const [activeTab, setActiveTab] = useState("datatable");
-  const [sampleData, setSampleData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Sample columns configuration for the data table
-  const columns = [
-    {
-      id: "id",
-      header: "ID",
-      accessorKey: "id",
-    },
-    {
-      id: "title",
-      header: "Title",
-      accessorKey: "title",
-    },
-    {
-      id: "status",
-      header: "Status",
-      accessorKey: "status",
-    },
-    {
-      id: "vendor",
-      header: "Vendor",
-      accessorKey: "vendor",
-    },
-    {
-      id: "productType",
-      header: "Product Type",
-      accessorKey: "productType",
-    },
-    {
-      id: "createdAt",
-      header: "Created At",
-      accessorKey: "createdAt",
-    },
-  ];
-  
-  // Load sample data when the component mounts
-  useEffect(() => {
-    const loadSampleData = async () => {
-      if (!sourceId) return;
-      
-      setIsLoading(true);
+  const executeQuery = async () => {
+    try {
+      setLoading(true);
       setError(null);
-      
-      try {
-        const client = createShopifyClient(sourceId);
-        
-        // Sample optimized query
-        const query = optimizeGraphQLQuery(`
-          query getProducts($first: Int!) {
-            products(first: $first) {
-              edges {
-                node {
-                  id
-                  title
-                  handle
-                  status
-                  productType
-                  vendor
-                  createdAt
-                  updatedAt
-                  tags
-                  totalInventory
-                  priceRangeV2 {
-                    minVariantPrice {
-                      amount
-                      currencyCode
-                    }
-                    maxVariantPrice {
-                      amount
-                      currencyCode
-                    }
-                  }
-                }
-              }
-            }
-          }
-        `);
-        
-        // Calculate query complexity
-        const complexity = estimateQueryComplexity(query);
-        console.log("Query complexity:", complexity);
-        
-        const result = await client.query(query, { first: 20 });
-        
-        if (result.data && result.data.products && result.data.products.edges) {
-          // Transform the data for easier consumption
-          const products = result.data.products.edges.map((edge: any) => {
-            const node = edge.node;
-            return {
-              id: node.id.replace("gid://shopify/Product/", ""),
-              title: node.title,
-              handle: node.handle,
-              status: node.status,
-              productType: node.productType,
-              vendor: node.vendor,
-              createdAt: new Date(node.createdAt).toLocaleString(),
-              updatedAt: new Date(node.updatedAt).toLocaleString(),
-              tags: node.tags,
-              totalInventory: node.totalInventory,
-              minPrice: node.priceRangeV2?.minVariantPrice?.amount,
-              maxPrice: node.priceRangeV2?.maxVariantPrice?.amount,
-              currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode,
-            };
-          });
-          
-          setSampleData(products);
-        }
-      } catch (err) {
-        console.error("Error loading sample data:", err);
-        setError(err instanceof Error ? err.message : "Failed to load sample data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadSampleData();
-  }, [sourceId]);
-  
+      const sourceId = client.getSourceId();
+      const response = await client.executeQuery(query, variables);
+      setData(response);
+    } catch (err) {
+      console.error('Error executing query:', err);
+      setError(err.message || 'An error occurred executing the query');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <Card className="w-full">
+    <Card>
       <CardHeader>
-        <CardTitle>Shopify Data Components</CardTitle>
-        <CardDescription>
-          Production-ready components for working with Shopify data
-        </CardDescription>
+        <div className="flex justify-between items-center">
+          <CardTitle>Store Query</CardTitle>
+          <Button onClick={executeQuery} disabled={loading}>
+            <PlayCircle className="mr-2 h-4 w-4" />
+            {loading ? 'Executing...' : 'Execute Query'}
+          </Button>
+        </div>
       </CardHeader>
-      
       <CardContent>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-3 mb-4">
-            <TabsTrigger value="datatable">Data Table</TabsTrigger>
-            <TabsTrigger value="jsonviewer">JSON Viewer</TabsTrigger>
-            <TabsTrigger value="largedata">Large Dataset Viewer</TabsTrigger>
-          </TabsList>
-          
-          <Alert className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Demo Components</AlertTitle>
-            <AlertDescription>
-              These components are demo implementations. The real data is loaded from your Shopify store if connected.
-            </AlertDescription>
-          </Alert>
-          
-          <TabsContent value="datatable">
-            <ShopifyDataTable
-              title="Shopify Products"
-              description="Sample product data with pagination and filtering"
-              data={sampleData}
-              columns={columns}
-              loading={isLoading}
-              error={error || undefined}
-              pagination={{
-                pageSize: 10,
-                pageIndex: 0,
-                onPageChange: () => {},
-                onPageSizeChange: () => {},
-              }}
-              onRowClick={(row) => console.log("Row clicked:", row)}
-            />
-          </TabsContent>
-          
-          <TabsContent value="jsonviewer">
-            <NestedJsonViewer
-              title="Nested JSON Viewer"
-              data={sampleData}
-              expandedByDefault={false}
-              searchEnabled={true}
-              pathCopyEnabled={true}
-              height="600px"
-            />
-          </TabsContent>
-          
-          <TabsContent value="largedata">
-            <LargeDatasetViewer
-              title="Large Dataset Viewer"
-              data={sampleData}
-              columns={columns}
-              loading={isLoading}
-              error={error}
-              height="600px"
-              onRowClick={(row) => console.log("Row details:", row)}
-              onDownload={() => {
-                const dataStr = JSON.stringify(sampleData, null, 2);
-                const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-                const exportName = 'shopify-data-export.json';
-                
-                const linkElement = document.createElement('a');
-                linkElement.setAttribute('href', dataUri);
-                linkElement.setAttribute('download', exportName);
-                linkElement.click();
-              }}
-            />
-          </TabsContent>
-        </Tabs>
+        {error && (
+          <div className="text-red-500 mb-4 p-3 bg-red-50 rounded-md">
+            {error}
+          </div>
+        )}
+
+        {data ? (
+          <Tabs value={viewMode} onValueChange={setViewMode}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="table">
+                <Table className="mr-2 h-4 w-4" />
+                Table View
+              </TabsTrigger>
+              <TabsTrigger value="json">
+                <FileJson className="mr-2 h-4 w-4" />
+                JSON View
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="table">
+              <ShopifyDataTable data={data} columns={columns} />
+            </TabsContent>
+            <TabsContent value="json">
+              <NestedJsonViewer data={data} />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <div className="text-center text-muted-foreground py-12">
+            {loading ? 'Loading...' : 'Execute the query to see results'}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
-}
+};
+
+export const ShopifyQueryPreview = ({ query, variables }) => {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Query Preview</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[400px]">
+          <pre className="text-xs font-mono bg-muted p-4 rounded-md">
+            {query}
+          </pre>
+          
+          {Object.keys(variables).length > 0 && (
+            <>
+              <div className="my-2 font-semibold">Variables:</div>
+              <pre className="text-xs font-mono bg-muted p-4 rounded-md">
+                {JSON.stringify(variables, null, 2)}
+              </pre>
+            </>
+          )}
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+};

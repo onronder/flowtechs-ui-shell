@@ -98,7 +98,8 @@ const QueryBuilderTabs = () => {
                 isExecuting={isExecuting}
                 complexity={complexity}
                 onExecute={executeQuery}
-                readOnly={true}
+                onCopy={copyToClipboard}
+                onSave={() => setSaveDialogOpen(true)}
                 height="500px"
               />
             </CardContent>
