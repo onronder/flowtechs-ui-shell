@@ -9,6 +9,59 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      api_metrics: {
+        Row: {
+          created_at: string
+          execution_time_ms: number
+          id: string
+          operation_type: string
+          rate_limit_available: number | null
+          rate_limit_maximum: number | null
+          request_id: string | null
+          request_size: number | null
+          response_size: number | null
+          source_id: string
+          status_code: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          execution_time_ms: number
+          id?: string
+          operation_type: string
+          rate_limit_available?: number | null
+          rate_limit_maximum?: number | null
+          request_id?: string | null
+          request_size?: number | null
+          response_size?: number | null
+          source_id: string
+          status_code?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          execution_time_ms?: number
+          id?: string
+          operation_type?: string
+          rate_limit_available?: number | null
+          rate_limit_maximum?: number | null
+          request_id?: string | null
+          request_size?: number | null
+          response_size?: number | null
+          source_id?: string
+          status_code?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_metrics_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_schemas: {
         Row: {
           api_version: string
@@ -123,6 +176,7 @@ export type Database = {
           data_updated_at: string | null
           description: string | null
           error_message: string | null
+          extraction_priority: number | null
           extraction_progress: number | null
           extraction_settings: Json | null
           id: string
@@ -137,6 +191,7 @@ export type Database = {
           query_type: Database["public"]["Enums"]["query_type"]
           record_count: number | null
           refresh_frequency: string | null
+          secure_query_validation: boolean | null
           source_id: string
           status: string | null
           template_id: string | null
@@ -149,6 +204,7 @@ export type Database = {
           data_updated_at?: string | null
           description?: string | null
           error_message?: string | null
+          extraction_priority?: number | null
           extraction_progress?: number | null
           extraction_settings?: Json | null
           id?: string
@@ -163,6 +219,7 @@ export type Database = {
           query_type: Database["public"]["Enums"]["query_type"]
           record_count?: number | null
           refresh_frequency?: string | null
+          secure_query_validation?: boolean | null
           source_id: string
           status?: string | null
           template_id?: string | null
@@ -175,6 +232,7 @@ export type Database = {
           data_updated_at?: string | null
           description?: string | null
           error_message?: string | null
+          extraction_priority?: number | null
           extraction_progress?: number | null
           extraction_settings?: Json | null
           id?: string
@@ -189,6 +247,7 @@ export type Database = {
           query_type?: Database["public"]["Enums"]["query_type"]
           record_count?: number | null
           refresh_frequency?: string | null
+          secure_query_validation?: boolean | null
           source_id?: string
           status?: string | null
           template_id?: string | null
@@ -268,6 +327,74 @@ export type Database = {
           },
         ]
       }
+      locks: {
+        Row: {
+          acquired_at: string
+          expires_at: string
+          lock_id: string
+          lock_key: string
+        }
+        Insert: {
+          acquired_at?: string
+          expires_at: string
+          lock_id: string
+          lock_key: string
+        }
+        Update: {
+          acquired_at?: string
+          expires_at?: string
+          lock_id?: string
+          lock_key?: string
+        }
+        Relationships: []
+      }
+      schema_diffs: {
+        Row: {
+          acknowledged: boolean
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          created_at: string
+          diff_details: Json
+          id: string
+          new_api_version: string
+          old_api_version: string
+          severity: string
+          source_id: string
+        }
+        Insert: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          created_at?: string
+          diff_details: Json
+          id?: string
+          new_api_version: string
+          old_api_version: string
+          severity: string
+          source_id: string
+        }
+        Update: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          created_at?: string
+          diff_details?: Json
+          id?: string
+          new_api_version?: string
+          old_api_version?: string
+          severity?: string
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schema_diffs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sources: {
         Row: {
           access_token: string | null
@@ -283,6 +410,7 @@ export type Database = {
           last_connected_at: string | null
           metadata: Json | null
           name: string
+          rate_limit_rules: Json | null
           store_name: string | null
           type: Database["public"]["Enums"]["source_type"]
           updated_at: string
@@ -302,6 +430,7 @@ export type Database = {
           last_connected_at?: string | null
           metadata?: Json | null
           name: string
+          rate_limit_rules?: Json | null
           store_name?: string | null
           type: Database["public"]["Enums"]["source_type"]
           updated_at?: string
@@ -321,6 +450,7 @@ export type Database = {
           last_connected_at?: string | null
           metadata?: Json | null
           name?: string
+          rate_limit_rules?: Json | null
           store_name?: string | null
           type?: Database["public"]["Enums"]["source_type"]
           updated_at?: string
@@ -333,6 +463,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_locks: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       decrypt_access_token: {
         Args: {
           encrypted_token: string
@@ -351,6 +485,27 @@ export type Database = {
           value: string
         }
         Returns: string
+      }
+      extend_lock: {
+        Args: {
+          p_key: string
+          p_ttl_seconds?: number
+        }
+        Returns: boolean
+      }
+      release_lock: {
+        Args: {
+          p_key: string
+        }
+        Returns: boolean
+      }
+      try_acquire_lock: {
+        Args: {
+          p_key: string
+          p_lock_id: string
+          p_ttl_seconds?: number
+        }
+        Returns: boolean
       }
     }
     Enums: {

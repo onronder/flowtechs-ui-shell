@@ -2,1056 +2,718 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.5';
 import { corsHeaders } from '../_shared/cors.ts';
 
-interface ExtractParams {
+interface ExtractionParams {
   sourceId: string;
   datasetId: string;
-  queryType: string;
+  queryType: 'product' | 'order' | 'customer' | 'inventory' | 'collection';
   queryName: string;
-  queryDetails: Record<string, any>;
-  extractionLogId: string;
-  cursor?: string;
+  queryDetails: {
+    include_variants?: boolean;
+    include_images?: boolean;
+    include_metafields?: boolean;
+    include_line_items?: boolean;
+    include_fulfillments?: boolean;
+    include_addresses?: boolean;
+    date_range?: string;
+    batch_size?: number;
+    max_retries?: number;
+    throttle_delay_ms?: number;
+    circuit_breaker_threshold?: number;
+    timeout_seconds?: number;
+    concurrent_requests?: number;
+    deduplication_enabled?: boolean;
+    cache_enabled?: boolean;
+    field_optimization?: boolean;
+  };
+  extractionLogId?: string;
   sampleOnly?: boolean;
 }
 
-// Distributed locking implementation to prevent concurrent extractions
-class DistributedLock {
-  constructor(private supabase: any) {}
-  
-  async acquire(datasetId: string, ttlSeconds: number = 300): Promise<boolean> {
-    try {
-      // Generate a unique lock ID
-      const lockId = crypto.randomUUID();
-      
-      // Insert a row in the locks table (will fail if it already exists)
-      const { data, error } = await this.supabase.rpc(
-        'try_acquire_lock',
-        { 
-          p_key: `dataset:${datasetId}:extraction`,
-          p_lock_id: lockId,
-          p_ttl_seconds: ttlSeconds
+interface GraphQLResult {
+  data: any;
+  pageInfo?: {
+    hasNextPage: boolean;
+    endCursor?: string;
+  };
+  errors?: any[];
+  extensions?: any;
+}
+
+interface ExtractionResult {
+  success: boolean;
+  data?: any[];
+  sample?: any[];
+  recordCount?: number;
+  error?: string;
+  extractionTime?: number;
+  apiCalls?: number;
+  averageResponseTime?: number;
+  rateLimitInfo?: {
+    available: number;
+    maximum: number;
+    restoreRate: number;
+    requestCost: number;
+  };
+}
+
+interface DateFilter {
+  field: string;
+  from?: string;
+  to?: string;
+}
+
+// Define predefined queries
+const PREDEFINED_QUERIES = {
+  products: `
+    query GetProducts($cursor: String, $pageSize: Int!, $metafieldIncluded: Boolean!, $variantsIncluded: Boolean!, $imagesIncluded: Boolean!, $sortKey: ProductSortKeys) {
+      products(first: $pageSize, after: $cursor, sortKey: $sortKey) {
+        pageInfo {
+          hasNextPage
+          endCursor
         }
-      );
-      
-      if (error) {
-        console.error('Error acquiring lock:', error);
-        return false;
-      }
-      
-      return data === true;
-    } catch (error) {
-      console.error('Exception acquiring lock:', error);
-      return false;
-    }
-  }
-  
-  async release(datasetId: string): Promise<boolean> {
-    try {
-      const { error } = await this.supabase.rpc(
-        'release_lock',
-        { p_key: `dataset:${datasetId}:extraction` }
-      );
-      
-      if (error) {
-        console.error('Error releasing lock:', error);
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Exception releasing lock:', error);
-      return false;
-    }
-  }
-  
-  async extend(datasetId: string, ttlSeconds: number = 300): Promise<boolean> {
-    try {
-      const { error } = await this.supabase.rpc(
-        'extend_lock',
-        { 
-          p_key: `dataset:${datasetId}:extraction`,
-          p_ttl_seconds: ttlSeconds
-        }
-      );
-      
-      if (error) {
-        console.error('Error extending lock:', error);
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Exception extending lock:', error);
-      return false;
-    }
-  }
-}
-
-// Circuit breaker implementation
-class CircuitBreaker {
-  private failures = 0;
-  private lastFailureTime: number | null = null;
-  private isOpen = false;
-  
-  constructor(
-    private threshold: number = 5,
-    private resetTimeout: number = 30000 // 30 seconds
-  ) {}
-  
-  public recordSuccess(): void {
-    this.failures = 0;
-    this.isOpen = false;
-  }
-  
-  public recordFailure(): boolean {
-    this.failures++;
-    this.lastFailureTime = Date.now();
-    
-    if (this.failures >= this.threshold) {
-      this.isOpen = true;
-    }
-    
-    return this.isOpen;
-  }
-  
-  public canRequest(): boolean {
-    if (!this.isOpen) return true;
-    
-    if (this.lastFailureTime && (Date.now() - this.lastFailureTime > this.resetTimeout)) {
-      // Half-open state - allow one request to try recovery
-      return true;
-    }
-    
-    return false;
-  }
-  
-  public getState(): { isOpen: boolean; failures: number; lastFailure: number | null } {
-    return {
-      isOpen: this.isOpen,
-      failures: this.failures,
-      lastFailure: this.lastFailureTime
-    };
-  }
-}
-
-// Response cache implementation
-class ResponseCache {
-  private cache = new Map<string, {
-    data: any;
-    timestamp: number;
-    expiresAt: number;
-  }>();
-  
-  constructor(private ttlMs: number = 300000) {} // Default 5 minutes TTL
-  
-  generateKey(sourceId: string, queryName: string, cursor?: string, filter?: string): string {
-    return `${sourceId}:${queryName}:${cursor || 'null'}:${filter || 'null'}`;
-  }
-  
-  get(key: string): any | null {
-    if (!this.cache.has(key)) return null;
-    
-    const entry = this.cache.get(key)!;
-    if (entry.expiresAt < Date.now()) {
-      this.cache.delete(key);
-      return null;
-    }
-    
-    return entry.data;
-  }
-  
-  set(key: string, data: any, ttlMs?: number): void {
-    const now = Date.now();
-    this.cache.set(key, {
-      data,
-      timestamp: now,
-      expiresAt: now + (ttlMs || this.ttlMs)
-    });
-    
-    // Cleanup old entries periodically
-    if (this.cache.size % 10 === 0) {
-      this.cleanup();
-    }
-  }
-  
-  invalidate(sourceId: string): void {
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(`${sourceId}:`)) {
-        this.cache.delete(key);
-      }
-    }
-  }
-  
-  private cleanup(): void {
-    const now = Date.now();
-    for (const [key, entry] of this.cache.entries()) {
-      if (entry.expiresAt < now) {
-        this.cache.delete(key);
-      }
-    }
-  }
-}
-
-// Sample GraphQL queries for different Shopify entity types with field selection optimization
-const generateShopifyQuery = (queryName: string, fieldSelection: string[] = [], cursor?: string): string => {
-  const baseQueries: Record<string, string> = {
-    products: `
-      query getProducts($cursor: String) {
-        products(first: 50, after: $cursor) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
-              id
-              title
-              handle
-              description
-              productType
-              status
-              createdAt
-              updatedAt
-              publishedAt
-              vendor
-              tags
-              priceRangeV2 {
-                minVariantPrice {
-                  amount
-                  currencyCode
-                }
-                maxVariantPrice {
-                  amount
-                  currencyCode
+        edges {
+          node {
+            id
+            title
+            description
+            handle
+            productType
+            tags
+            vendor
+            status
+            publishedAt
+            createdAt
+            updatedAt
+            onlineStoreUrl
+            priceRangeV2 {
+              minVariantPrice {
+                amount
+                currencyCode
+              }
+              maxVariantPrice {
+                amount
+                currencyCode
+              }
+            }
+            totalInventory
+            metafields @include(if: $metafieldIncluded) {
+              edges {
+                node {
+                  id
+                  namespace
+                  key
+                  value
+                  type
                 }
               }
-              __VARIANTS__
-              __IMAGES__
-              __METAFIELDS__
+            }
+            images @include(if: $imagesIncluded) {
+              edges {
+                node {
+                  id
+                  altText
+                  src
+                  width
+                  height
+                }
+              }
+            }
+            variants @include(if: $variantsIncluded) {
+              edges {
+                node {
+                  id
+                  title
+                  sku
+                  price
+                  compareAtPrice
+                  inventoryQuantity
+                  inventoryPolicy
+                  barcode
+                  availableForSale
+                  position
+                  createdAt
+                  updatedAt
+                  weight
+                  weightUnit
+                }
+              }
             }
           }
         }
       }
-    `,
-    
-    orders: `
-      query getOrders($cursor: String, $query: String) {
-        orders(first: 50, after: $cursor, query: $query) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
+    }
+  `,
+  orders: `
+    query GetOrders($cursor: String, $pageSize: Int!, $lineItemsIncluded: Boolean!, $fulfillmentsIncluded: Boolean!, $sinceDate: DateTime, $sortKey: OrderSortKeys) {
+      orders(first: $pageSize, after: $cursor, query: $sinceDate, sortKey: $sortKey) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            id
+            name
+            email
+            phone
+            confirmed
+            cancelledAt
+            cancelReason
+            createdAt
+            updatedAt
+            processedAt
+            closedAt
+            totalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            subtotalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            totalShippingPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            totalTaxSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            financialStatus
+            fulfillmentStatus
+            customer {
               id
-              name
               email
-              phone
-              totalPrice {
-                amount
-                currencyCode
-              }
-              subtotalPrice {
-                amount
-                currencyCode
-              }
-              totalShippingPrice {
-                amount
-                currencyCode
-              }
-              totalTax {
-                amount
-                currencyCode
-              }
-              createdAt
-              updatedAt
-              displayFinancialStatus
-              displayFulfillmentStatus
-              customer {
-                id
-                firstName
-                lastName
-                email
-                phone
-              }
-              __ADDRESSES__
-              __LINE_ITEMS__
-              __FULFILLMENTS__
-            }
-          }
-        }
-      }
-    `,
-    
-    customers: `
-      query getCustomers($cursor: String) {
-        customers(first: 50, after: $cursor) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
-              id
               firstName
               lastName
-              email
-              phone
-              createdAt
-              updatedAt
-              tags
-              __ADDRESSES__
               ordersCount
-              totalSpent {
-                amount
-                currencyCode
-              }
-              lastOrder {
-                id
-                name
-                createdAt
-              }
+              totalSpent
             }
-          }
-        }
-      }
-    `
-  };
-  
-  // Field selection sections for optimization
-  const fieldSections: Record<string, Record<string, string>> = {
-    products: {
-      VARIANTS: `
-        variants(first: 20) {
-          edges {
-            node {
-              id
-              title
-              price
-              sku
-              inventoryQuantity
-              selectedOptions {
-                name
-                value
-              }
-            }
-          }
-        }
-      `,
-      IMAGES: `
-        images(first: 10) {
-          edges {
-            node {
-              id
-              url
-              altText
-              width
-              height
-            }
-          }
-        }
-      `,
-      METAFIELDS: `
-        metafields(first: 10) {
-          edges {
-            node {
-              id
-              namespace
-              key
-              value
-              type
-            }
-          }
-        }
-      `
-    },
-    orders: {
-      ADDRESSES: `
-        shippingAddress {
-          address1
-          address2
-          city
-          province
-          country
-          zip
-          phone
-        }
-      `,
-      LINE_ITEMS: `
-        lineItems(first: 50) {
-          edges {
-            node {
-              id
-              title
-              quantity
-              originalUnitPrice {
-                amount
-                currencyCode
-              }
-              variant {
-                id
-                title
-                sku
-              }
-            }
-          }
-        }
-      `,
-      FULFILLMENTS: `
-        fulfillments {
-          id
-          status
-          createdAt
-          trackingInfo {
-            company
-            number
-            url
-          }
-        }
-      `
-    },
-    customers: {
-      ADDRESSES: `
-        defaultAddress {
-          id
-          address1
-          address2
-          city
-          province
-          country
-          zip
-          phone
-        }
-        addresses(first: 10) {
-          edges {
-            node {
-              id
+            shippingAddress {
+              firstName
+              lastName
               address1
               address2
               city
-              province
-              country
+              provinceCode
+              countryCodeV2
+              zip
+              phone
+            }
+            billingAddress {
+              firstName
+              lastName
+              address1
+              address2
+              city
+              provinceCode
+              countryCodeV2
+              zip
+              phone
+            }
+            lineItems @include(if: $lineItemsIncluded) {
+              edges {
+                node {
+                  id
+                  title
+                  quantity
+                  originalTotalSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  discountedTotalSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  variant {
+                    id
+                    title
+                    sku
+                    price
+                    product {
+                      id
+                      title
+                      handle
+                    }
+                  }
+                }
+              }
+            }
+            fulfillments @include(if: $fulfillmentsIncluded) {
+              id
+              status
+              trackingInfo {
+                company
+                number
+                url
+              }
+              createdAt
+              updatedAt
+            }
+          }
+        }
+      }
+    }
+  `,
+  customers: `
+    query GetCustomers($cursor: String, $pageSize: Int!, $addressesIncluded: Boolean!, $sortKey: CustomerSortKeys) {
+      customers(first: $pageSize, after: $cursor, sortKey: $sortKey) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            id
+            firstName
+            lastName
+            email
+            phone
+            tags
+            createdAt
+            updatedAt
+            ordersCount
+            totalSpent
+            note
+            state
+            defaultAddress {
+              address1
+              address2
+              city
+              provinceCode
+              countryCodeV2
+              zip
+              phone
+            }
+            addresses @include(if: $addressesIncluded) {
+              address1
+              address2
+              city
+              provinceCode
+              countryCodeV2
               zip
               phone
             }
           }
         }
-      `
+      }
     }
-  };
-  
-  // Start with the base query for the requested entity
-  let query = baseQueries[queryName] || '';
-  
-  // Apply field selection optimizations
-  if (fieldSections[queryName]) {
-    const sections = fieldSections[queryName];
-    
-    Object.keys(sections).forEach(sectionKey => {
-      const placeholder = `__${sectionKey}__`;
-      // Include this section only if it's in the fieldSelection array, or if fieldSelection is empty
-      const included = fieldSelection.length === 0 || 
-                     fieldSelection.some(f => f.toLowerCase() === sectionKey.toLowerCase());
-      
-      query = query.replace(placeholder, included ? sections[sectionKey] : '');
-    });
-  }
-  
-  return query;
+  `,
+  inventory: `
+    query GetInventory($cursor: String, $pageSize: Int!) {
+      locations(first: 10) {
+        edges {
+          node {
+            id
+            name
+            isActive
+            address {
+              address1
+              address2
+              city
+              provinceCode
+              countryCode
+              zip
+            }
+            inventoryLevels(first: $pageSize, after: $cursor) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              edges {
+                node {
+                  id
+                  available
+                  item {
+                    __typename
+                    ... on InventoryItem {
+                      id
+                      sku
+                      tracked
+                      createdAt
+                      updatedAt
+                      variant {
+                        id
+                        title
+                        product {
+                          id
+                          title
+                          handle
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `,
+  collections: `
+    query GetCollections($cursor: String, $pageSize: Int!, $sortKey: CollectionSortKeys) {
+      collections(first: $pageSize, after: $cursor, sortKey: $sortKey) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            id
+            title
+            description
+            handle
+            descriptionHtml
+            updatedAt
+            productsCount
+            seo {
+              title
+              description
+            }
+            image {
+              id
+              altText
+              src
+              width
+              height
+            }
+          }
+        }
+      }
+    }
+  `
 };
 
-// Helper function to get extraction settings from the dataset
-async function getExtractionSettings(supabase: any, datasetId: string) {
-  try {
-    const { data, error } = await supabase
-      .from('datasets')
-      .select('extraction_settings')
-      .eq('id', datasetId)
-      .single();
-    
-    if (error) throw error;
-    
-    return data.extraction_settings || {
-      batch_size: 100,
-      max_retries: 3,
-      throttle_delay_ms: 1000,
-      circuit_breaker_threshold: 5,
-      timeout_seconds: 30,
-      concurrent_requests: 1,
-      deduplication_enabled: true,
-      cache_enabled: true,
-      field_optimization: true
-    };
-  } catch (error) {
-    console.error('Error getting extraction settings:', error);
-    
-    // Return defaults
-    return {
-      batch_size: 100,
-      max_retries: 3,
-      throttle_delay_ms: 1000,
-      circuit_breaker_threshold: 5,
-      timeout_seconds: 30,
-      concurrent_requests: 1,
-      deduplication_enabled: true,
-      cache_enabled: true,
-      field_optimization: true
-    };
+// Create date filter based on date range
+function createDateFilter(queryType: string, dateRange?: string): DateFilter | null {
+  if (!dateRange) return null;
+  
+  const now = new Date();
+  let fromDate: Date | null = null;
+  
+  switch (dateRange) {
+    case '30d':
+      fromDate = new Date(now);
+      fromDate.setDate(now.getDate() - 30);
+      break;
+    case '90d':
+      fromDate = new Date(now);
+      fromDate.setDate(now.getDate() - 90);
+      break;
+    case 'ytd':
+      fromDate = new Date(now.getFullYear(), 0, 1); // Start of this year
+      break;
+    case 'all':
+      // No date filter
+      return null;
+    default:
+      // No recognized date range
+      return null;
   }
+  
+  let field = '';
+  switch (queryType) {
+    case 'orders':
+      field = 'created_at';
+      break;
+    case 'customers':
+      field = 'created_at';
+      break;
+    case 'products':
+      field = 'updated_at';
+      break;
+    default:
+      // No date field for this query type
+      return null;
+  }
+  
+  return {
+    field,
+    from: fromDate ? fromDate.toISOString() : undefined
+  };
 }
 
-// Core extraction function with proper error handling
-async function extractShopifyData(params: ExtractParams) {
-  const { sourceId, datasetId, queryType, queryName, queryDetails, extractionLogId, cursor, sampleOnly } = params;
+// Format query parameters
+function getQueryVariables(queryType: string, queryDetails: any, pageSize: number, cursor?: string): Record<string, any> {
+  const variables: Record<string, any> = {
+    pageSize,
+    cursor: cursor || null
+  };
   
-  // Set up performance tracking
-  const extractionStart = Date.now();
+  switch (queryType) {
+    case 'products':
+      variables.metafieldIncluded = !!queryDetails.include_metafields;
+      variables.variantsIncluded = !!queryDetails.include_variants;
+      variables.imagesIncluded = !!queryDetails.include_images;
+      variables.sortKey = 'UPDATED_AT';
+      break;
+    case 'orders':
+      variables.lineItemsIncluded = !!queryDetails.include_line_items;
+      variables.fulfillmentsIncluded = !!queryDetails.include_fulfillments;
+      variables.sortKey = 'PROCESSED_AT';
+      
+      // Handle date filtering
+      if (queryDetails.date_range && queryDetails.date_range !== 'all') {
+        const fromDate = new Date();
+        switch (queryDetails.date_range) {
+          case '30d':
+            fromDate.setDate(fromDate.getDate() - 30);
+            break;
+          case '90d':
+            fromDate.setDate(fromDate.getDate() - 90);
+            break;
+          default:
+            // Default to 30 days
+            fromDate.setDate(fromDate.getDate() - 30);
+        }
+        variables.sinceDate = fromDate.toISOString();
+      }
+      break;
+    case 'customers':
+      variables.addressesIncluded = !!queryDetails.include_addresses;
+      variables.sortKey = 'UPDATED_AT';
+      break;
+    case 'inventory':
+      // No special variables
+      break;
+    case 'collections':
+      variables.sortKey = 'UPDATED_AT';
+      break;
+  }
   
-  // Initialize Supabase client
-  const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-  const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  
-  // Create distributed lock and cache instances
-  const lock = new DistributedLock(supabase);
-  const cache = new ResponseCache(5 * 60 * 1000); // 5 minute cache
-  
-  let lockAcquired = false;
-  
+  return variables;
+}
+
+// Normalize query results
+function normalizeQueryResults(queryType: string, data: any): any[] {
   try {
-    // Only acquire a lock for full extractions (not samples)
-    if (!sampleOnly) {
-      lockAcquired = await lock.acquire(datasetId);
-      
-      if (!lockAcquired) {
-        throw new Error('Another extraction is already in progress for this dataset');
-      }
-      
-      // Set up a lock extension interval (every 4 minutes)
-      const lockInterval = setInterval(async () => {
-        await lock.extend(datasetId);
-      }, 4 * 60 * 1000);
-      
-      // Clean up interval if needed
-      setTimeout(() => clearInterval(lockInterval), 30 * 60 * 1000); // Max 30 minutes
-    }
+    let items: any[] = [];
+    let pageInfo = null;
     
-    // Get source info
-    const { data: source, error: sourceError } = await supabase
-      .from('sources')
-      .select('*')
-      .eq('id', sourceId)
-      .single();
-    
-    if (sourceError) throw new Error(`Error fetching source: ${sourceError.message}`);
-    if (!source) throw new Error('Source not found');
-    
-    // Ensure source is Shopify and connected
-    if (source.type !== 'shopify') throw new Error('Source must be a Shopify store');
-    if (source.connection_status !== 'connected') throw new Error('Shopify source is not connected');
-    
-    // Get extraction settings
-    const extractionSettings = await getExtractionSettings(supabase, datasetId);
-    
-    // Create circuit breaker based on settings
-    const circuitBreaker = new CircuitBreaker(
-      extractionSettings.circuit_breaker_threshold || 5,
-      30000
-    );
-    
-    // Determine which fields to include based on query details
-    const fieldSelection: string[] = [];
-    if (queryName === 'products') {
-      if (queryDetails.include_variants) fieldSelection.push('VARIANTS');
-      if (queryDetails.include_images) fieldSelection.push('IMAGES');
-      if (queryDetails.include_metafields) fieldSelection.push('METAFIELDS');
-    } else if (queryName === 'orders') {
-      if (queryDetails.include_line_items) fieldSelection.push('LINE_ITEMS');
-      if (queryDetails.include_fulfillments) fieldSelection.push('FULFILLMENTS');
-      if (queryDetails.include_addresses) fieldSelection.push('ADDRESSES');
-    } else if (queryName === 'customers') {
-      if (queryDetails.include_addresses) fieldSelection.push('ADDRESSES');
-    }
-    
-    // Generate optimized GraphQL query
-    const query = generateShopifyQuery(queryName, fieldSelection, cursor);
-    
-    // Prepare variables
-    const variables: Record<string, any> = { cursor };
-    
-    // For orders, handle date filters
-    if (queryName === 'orders' && queryDetails.date_range) {
-      let dateQuery = '';
-      const dateRange = queryDetails.date_range;
-      
-      if (dateRange === '30d') {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        dateQuery = `created_at:>=${thirtyDaysAgo.toISOString()}`;
-      } else if (dateRange === '90d') {
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        dateQuery = `created_at:>=${ninetyDaysAgo.toISOString()}`;
-      } else if (dateRange === 'all') {
-        dateQuery = '';
-      }
-      
-      variables.query = dateQuery;
-    }
-    
-    // Check cache if enabled
-    let cachedResult = null;
-    if (extractionSettings.cache_enabled && !sampleOnly) {
-      const cacheKey = cache.generateKey(
-        sourceId, 
-        queryName, 
-        cursor, 
-        queryName === 'orders' ? variables.query : undefined
-      );
-      
-      cachedResult = cache.get(cacheKey);
-      
-      if (cachedResult) {
-        console.log(`Using cached data for ${queryName} at cursor ${cursor || 'start'}`);
+    switch (queryType) {
+      case 'products':
+        items = data.products.edges.map((edge: any) => {
+          const node = edge.node;
+          
+          // Normalize nested arrays
+          if (node.metafields?.edges) {
+            node.metafields = node.metafields.edges.map((e: any) => e.node);
+          }
+          
+          if (node.images?.edges) {
+            node.images = node.images.edges.map((e: any) => e.node);
+          }
+          
+          if (node.variants?.edges) {
+            node.variants = node.variants.edges.map((e: any) => e.node);
+          }
+          
+          return node;
+        });
+        pageInfo = data.products.pageInfo;
+        break;
+      case 'orders':
+        items = data.orders.edges.map((edge: any) => {
+          const node = edge.node;
+          
+          // Normalize nested arrays
+          if (node.lineItems?.edges) {
+            node.lineItems = node.lineItems.edges.map((e: any) => e.node);
+          }
+          
+          return node;
+        });
+        pageInfo = data.orders.pageInfo;
+        break;
+      case 'customers':
+        items = data.customers.edges.map((edge: any) => edge.node);
+        pageInfo = data.customers.pageInfo;
+        break;
+      case 'inventory':
+        // Inventory is more nested - we need to flatten location -> inventoryLevels
+        const inventoryItems: any[] = [];
         
-        // Update extraction log with cache hit
-        await updateExtractionLog(supabase, extractionLogId, {
-          api_calls: 0,
-          records_processed: cachedResult.edges.length,
-          average_response_time: 0,
-          metadata: {
-            cache_hit: true,
-            execution_step: cursor ? 'pagination' : 'initial',
-            cursor: cachedResult.pageInfo.endCursor
+        data.locations.edges.forEach((locationEdge: any) => {
+          const location = locationEdge.node;
+          
+          location.inventoryLevels.edges.forEach((inventoryEdge: any) => {
+            const inventory = inventoryEdge.node;
+            inventoryItems.push({
+              ...inventory,
+              locationId: location.id,
+              locationName: location.name,
+              locationAddress: location.address
+            });
+          });
+          
+          // Use the pageInfo from the first location's inventory levels
+          if (!pageInfo && location.inventoryLevels.pageInfo) {
+            pageInfo = location.inventoryLevels.pageInfo;
           }
         });
         
-        // Process the items from cache
-        const items = cachedResult.edges.map((edge: any) => edge.node);
-        
-        // If this is a sample extraction or there are no more pages, update the dataset
-        if (sampleOnly || !cachedResult.pageInfo.hasNextPage) {
-          await updateDataset(supabase, datasetId, items, !cursor, sampleOnly);
-          
-          // If sampling only, we're done
-          if (sampleOnly) {
-            await finalizeExtractionLog(supabase, extractionLogId, {
-              status: 'completed',
-              total_records: items.length,
-              end_time: new Date().toISOString()
-            });
-            
-            return {
-              success: true,
-              message: 'Sample data extracted successfully (from cache)',
-              sample: items.slice(0, 10), // Return first 10 for preview
-              hasMore: cachedResult.pageInfo.hasNextPage,
-              count: items.length
-            };
-          }
-        }
-        
-        // If we're at the start of extraction, update total_records estimate
-        if (!cursor) {
-          // If it's a full extraction and there are more pages, we need to continue
-          // The total count estimation is rough (API doesn't provide exact count)
-          const estimatedTotal = cachedResult.pageInfo.hasNextPage ? items.length * 10 : items.length;
-          
-          await updateExtractionLog(supabase, extractionLogId, {
-            total_records: estimatedTotal
-          });
-        }
-        
-        // Return result with pagination info for continued extraction
-        return {
-          success: true,
-          hasMore: cachedResult.pageInfo.hasNextPage,
-          nextCursor: cachedResult.pageInfo.endCursor,
-          count: items.length,
-          total: cachedResult.edges ? cachedResult.edges.length : 0,
-          sample: items.slice(0, 10), // Return first 10 for preview
-          fromCache: true
-        };
-      }
+        items = inventoryItems;
+        break;
+      case 'collections':
+        items = data.collections.edges.map((edge: any) => edge.node);
+        pageInfo = data.collections.pageInfo;
+        break;
     }
     
-    // No cache hit - need to make an API call
+    return { items, pageInfo };
+  } catch (error) {
+    console.error(`Error normalizing ${queryType} data:`, error);
+    throw new Error(`Failed to normalize data: ${error.message}`);
+  }
+}
+
+// Function to execute query with pagination
+async function executeQueryWithPagination(
+  shopDomain: string,
+  accessToken: string,
+  apiVersion: string,
+  queryType: string,
+  queryDetails: any,
+  sampleOnly: boolean = false,
+  extractionLogId?: string,
+  maxRecords: number = 1000
+): Promise<{ data: any[], apiCalls: number, averageResponseTime: number }> {
+  const endpoint = `https://${shopDomain}/admin/api/${apiVersion}/graphql.json`;
+  const query = PREDEFINED_QUERIES[queryType as keyof typeof PREDEFINED_QUERIES];
+  
+  if (!query) {
+    throw new Error(`No predefined query available for type: ${queryType}`);
+  }
+  
+  const batchSize = queryDetails.batch_size || 100;
+  const maxRetries = queryDetails.max_retries || 3;
+  const throttleDelay = queryDetails.throttle_delay_ms || 500;
+  
+  let hasNextPage = true;
+  let cursor: string | null = null;
+  let allResults: any[] = [];
+  let apiCalls = 0;
+  let totalResponseTime = 0;
+  
+  // If sampleOnly, just get one page of results
+  const recordLimit = sampleOnly ? Math.min(batchSize, 10) : maxRecords;
+  
+  while (hasNextPage && allResults.length < recordLimit) {
+    apiCalls++;
     
-    // Check circuit breaker
-    if (!circuitBreaker.canRequest()) {
-      throw new Error('Circuit breaker is open - too many failed requests');
+    // Add variable delay for rate limiting protection
+    if (apiCalls > 1) {
+      await new Promise(resolve => setTimeout(resolve, throttleDelay + Math.random() * 200));
     }
     
-    // Get the actual access token using the RPC function
-    const { data: tokenData, error: tokenError } = await supabase.rpc(
-      'decrypt_access_token',
-      { encrypted_token: source.access_token, user_uuid: source.user_id }
-    );
+    const variables = getQueryVariables(queryType, queryDetails, batchSize, cursor);
     
-    if (tokenError) throw new Error(`Error decrypting access token: ${tokenError.message}`);
-    if (!tokenData) throw new Error('Could not decrypt access token');
+    // Execute with retries
+    let retries = 0;
+    let success = false;
+    let result = null;
     
-    const shopDomain = source.store_name || '';
-    const accessToken = tokenData;
-    const apiVersion = source.api_version || '2024-04';
-    
-    // Execute the query with retries and error handling
-    let retryCount = 0;
-    let result;
-    
-    // Exponential backoff retry function
-    const executeWithRetry = async () => {
+    while (!success && retries <= maxRetries) {
       try {
-        // Call Shopify GraphQL API
-        const response = await fetch(`https://${shopDomain}/admin/api/${apiVersion}/graphql.json`, {
+        const startTime = Date.now();
+        
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Shopify-Access-Token': accessToken,
-            'X-Request-ID': crypto.randomUUID() // For request tracing
+            'X-Shopify-Access-Token': accessToken
           },
-          body: JSON.stringify({ query, variables })
+          body: JSON.stringify({
+            query,
+            variables
+          })
         });
         
-        // Extract rate limit information
-        const rateLimitInfo = {
-          available: parseInt(response.headers.get('X-Shopify-Shop-Api-Call-Limit')?.split('/')[0] || '0'),
-          maximum: parseInt(response.headers.get('X-Shopify-Shop-Api-Call-Limit')?.split('/')[1] || '0'),
-          restoreRate: 50, // Typical restore rate of 50 points/second
-          requestCost: 1 // Default cost, more complex queries may cost more
-        };
+        const responseTime = Date.now() - startTime;
+        totalResponseTime += responseTime;
         
-        // Handle rate limiting
-        if (response.status === 429) {
-          const retryAfter = parseInt(response.headers.get('Retry-After') || '1');
-          
-          // Log rate limiting event
-          await supabase.from('audit_logs').insert({
-            table_name: 'extraction_rate_limits',
-            record_id: datasetId,
-            action: 'RATE_LIMITED',
-            user_id: source.user_id,
-            new_data: {
-              rate_limit_info: rateLimitInfo,
-              retry_after: retryAfter,
-              timestamp: new Date().toISOString()
-            }
-          });
-          
-          if (retryCount < extractionSettings.max_retries) {
-            retryCount++;
-            // Wait for the retry-after period plus a small random jitter
-            const jitter = Math.floor(Math.random() * 500);
-            await new Promise(resolve => setTimeout(resolve, (retryAfter * 1000) + jitter));
-            return executeWithRetry(); // Recursive retry
-          } else {
-            circuitBreaker.recordFailure();
-            throw new Error(`Rate limit exceeded and max retries reached`);
-          }
-        }
-        
-        // Handle other error responses
         if (!response.ok) {
           const errorText = await response.text();
-          if (retryCount < extractionSettings.max_retries && (response.status >= 500 || response.status === 408)) {
-            retryCount++;
-            // Exponential backoff for server errors
-            const backoffTime = Math.min(1000 * Math.pow(2, retryCount) + Math.random() * 1000, 10000);
-            await new Promise(resolve => setTimeout(resolve, backoffTime));
-            return executeWithRetry(); // Recursive retry
-          }
-          
-          circuitBreaker.recordFailure();
-          throw new Error(`Server error (${response.status}): ${errorText}`);
+          throw new Error(`GraphQL request failed: ${response.status} ${errorText}`);
         }
         
-        // Parse response
-        const data = await response.json();
+        result = await response.json();
         
         // Check for GraphQL errors
-        if (data.errors) {
-          // Determine if errors are retryable
-          const hasRetryableError = data.errors.some((err: any) => {
-            const code = err.extensions?.code;
-            return code === 'THROTTLED' || code === 'INTERNAL_SERVER_ERROR' || code === 'TIMEOUT';
-          });
-          
-          if (hasRetryableError && retryCount < extractionSettings.max_retries) {
-            retryCount++;
-            const backoffTime = Math.min(1000 * Math.pow(2, retryCount) + Math.random() * 1000, 10000);
-            await new Promise(resolve => setTimeout(resolve, backoffTime));
-            return executeWithRetry(); // Recursive retry
-          }
-          
-          circuitBreaker.recordFailure();
-          throw new Error(`GraphQL errors: ${data.errors.map((e: any) => e.message).join(', ')}`);
+        if (result.errors) {
+          throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`);
         }
         
-        // Record success with circuit breaker
-        circuitBreaker.recordSuccess();
-        
-        return {
-          data,
-          rateLimitInfo,
-          responseTime: Date.now() - extractionStart
-        };
+        success = true;
       } catch (error) {
-        if (error.message.includes('fetch') && retryCount < extractionSettings.max_retries) {
-          retryCount++;
-          const backoffTime = Math.min(1000 * Math.pow(2, retryCount) + Math.random() * 1000, 10000);
-          await new Promise(resolve => setTimeout(resolve, backoffTime));
-          return executeWithRetry(); // Recursive retry for network errors
-        }
-        throw error;
-      }
-    };
-    
-    // Execute query with retries
-    result = await executeWithRetry();
-    
-    // Extract and validate the data
-    if (!result.data.data || !result.data.data[queryName]) {
-      throw new Error(`Invalid response format: missing ${queryName} field`);
-    }
-    
-    // Get data and page info
-    const entityData = result.data.data[queryName];
-    const hasNextPage = entityData.pageInfo.hasNextPage;
-    const nextCursor = entityData.pageInfo.endCursor;
-    
-    // Process the items
-    const items = entityData.edges.map((edge: any) => edge.node);
-    
-    // Store in cache if enabled
-    if (extractionSettings.cache_enabled) {
-      const cacheKey = cache.generateKey(
-        sourceId, 
-        queryName, 
-        cursor,
-        queryName === 'orders' ? variables.query : undefined
-      );
-      
-      cache.set(cacheKey, entityData);
-    }
-    
-    // Update extraction log with progress
-    await updateExtractionLog(supabase, extractionLogId, {
-      api_calls: 1,
-      records_processed: items.length,
-      average_response_time: result.responseTime,
-      metadata: {
-        rate_limit: result.rateLimitInfo,
-        execution_step: cursor ? 'pagination' : 'initial',
-        cursor: nextCursor,
-        query_details: {
-          query_size: query.length,
-          response_size: JSON.stringify(entityData).length,
-          field_selection: fieldSelection
-        }
-      }
-    });
-    
-    // If this is a sample extraction or there are no more pages, update the dataset
-    if (sampleOnly || !hasNextPage) {
-      await updateDataset(supabase, datasetId, items, !cursor, sampleOnly);
-      
-      // If sampling only, we're done
-      if (sampleOnly) {
-        await finalizeExtractionLog(supabase, extractionLogId, {
-          status: 'completed',
-          total_records: items.length,
-          end_time: new Date().toISOString()
-        });
+        retries++;
         
-        return {
-          success: true,
-          message: 'Sample data extracted successfully',
-          sample: items.slice(0, 10), // Return first 10 for preview
-          hasMore: hasNextPage,
-          count: items.length
-        };
-      }
-    }
-    
-    // If we're at the start of extraction, update total_records estimate
-    if (!cursor) {
-      // If it's a full extraction and there are more pages, we need to continue
-      // The total count estimation is rough (API doesn't provide exact count)
-      const estimatedTotal = hasNextPage ? items.length * 10 : items.length;
-      
-      await updateExtractionLog(supabase, extractionLogId, {
-        total_records: estimatedTotal
-      });
-    }
-    
-    // Return result with pagination info for continued extraction
-    return {
-      success: true,
-      hasMore: hasNextPage,
-      nextCursor: nextCursor,
-      count: items.length,
-      total: entityData.edges ? entityData.edges.length : 0,
-      sample: items.slice(0, 10), // Return first 10 for preview
-      rateLimitInfo: result.rateLimitInfo,
-      responseTime: result.responseTime
-    };
-  } catch (error) {
-    console.error('Error in extraction:', error);
-    
-    // Update extraction log with error
-    await updateExtractionLogError(
-      supabase, 
-      extractionLogId, 
-      error instanceof Error ? error.message : String(error),
-      {
-        circuit_breaker_state: circuitBreaker?.getState(),
-        error_stack: error instanceof Error ? error.stack : undefined,
-        extraction_duration_ms: Date.now() - extractionStart
-      }
-    );
-    
-    // Update dataset with error info
-    await updateDatasetError(
-      supabase,
-      datasetId,
-      error instanceof Error ? error.message : String(error)
-    );
-    
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    };
-  } finally {
-    // Release the lock if we acquired it
-    if (lockAcquired) {
-      await lock.release(datasetId);
-    }
-  }
-}
-
-async function updateExtractionLog(supabase: any, logId: string, updates: Record<string, any>) {
-  try {
-    const { error } = await supabase
-      .from('extraction_logs')
-      .update(updates)
-      .eq('id', logId);
-    
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error updating extraction log:', error);
-  }
-}
-
-async function finalizeExtractionLog(supabase: any, logId: string, updates: Record<string, any>) {
-  try {
-    const { error } = await supabase
-      .from('extraction_logs')
-      .update({
-        ...updates,
-        end_time: new Date().toISOString()
-      })
-      .eq('id', logId);
-    
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error finalizing extraction log:', error);
-  }
-}
-
-async function updateExtractionLogError(
-  supabase: any, 
-  logId: string, 
-  errorMessage: string,
-  additionalData: Record<string, any> = {}
-) {
-  try {
-    const { error } = await supabase
-      .from('extraction_logs')
-      .update({
-        status: 'failed',
-        error_message: errorMessage,
-        end_time: new Date().toISOString(),
-        metadata: {
-          ...additionalData,
-          error_timestamp: new Date().toISOString()
+        if (retries > maxRetries) {
+          throw new Error(`Failed after ${maxRetries} retries: ${error.message}`);
         }
-      })
-      .eq('id', logId);
-    
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error updating extraction log with error:', error);
-  }
-}
-
-async function updateDataset(supabase: any, datasetId: string, items: any[], isFirstBatch: boolean, isSample: boolean) {
-  try {
-    const updates: Record<string, any> = {
-      data_updated_at: new Date().toISOString(),
-      record_count: items.length
-    };
-    
-    // Only update the full dataset data if not a sample
-    if (!isSample) {
-      if (isFirstBatch) {
-        // First batch overwrites existing data
-        updates.data = items;
-      } else {
-        // Append to existing data
-        const { data: dataset } = await supabase
-          .from('datasets')
-          .select('data')
-          .eq('id', datasetId)
-          .single();
         
-        if (dataset && dataset.data) {
-          updates.data = [...dataset.data, ...items];
-          updates.record_count = updates.data.length;
-        } else {
-          updates.data = items;
-        }
+        // Exponential backoff with jitter
+        const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
+        console.log(`Retry ${retries}/${maxRetries} after ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-    } else {
-      // For sample, just store the preview data in the metadata
-      updates.status = 'ready';
-      updates.last_error_details = null;
     }
     
-    // Add performance metrics
-    updates.performance_metrics = {
-      records_per_second: items.length / ((Date.now() - performance.now()) / 1000),
-      api_calls_per_record: 1 / items.length,
-      average_response_time: (Date.now() - performance.now()) / 1,
-      quota_usage_percentage: 0 // Will be updated when we have rate limit info
-    };
+    // Process results
+    const normalized = normalizeQueryResults(queryType, result.data);
+    allResults = [...allResults, ...normalized.items];
     
-    const { error } = await supabase
-      .from('datasets')
-      .update(updates)
-      .eq('id', datasetId);
+    // Update extraction log if provided
+    if (extractionLogId) {
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+      const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      
+      await supabase
+        .from('extraction_logs')
+        .update({
+          records_processed: allResults.length,
+          api_calls: apiCalls,
+          average_response_time: totalResponseTime / apiCalls,
+          metadata: {
+            last_cursor: cursor,
+            has_more: normalized.pageInfo?.hasNextPage,
+            current_batch: apiCalls,
+            query_type: queryType,
+            timestamp: new Date().toISOString()
+          }
+        })
+        .eq('id', extractionLogId);
+    }
     
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error updating dataset:', error);
+    // Update pagination info for next request
+    hasNextPage = normalized.pageInfo?.hasNextPage || false;
+    cursor = normalized.pageInfo?.endCursor || null;
+    
+    // If sample only, we're done after first batch
+    if (sampleOnly) {
+      break;
+    }
   }
-}
-
-async function updateDatasetError(supabase: any, datasetId: string, errorMessage: string) {
-  try {
-    const { error } = await supabase
-      .from('datasets')
-      .update({
-        status: 'failed',
-        last_error_details: {
-          message: errorMessage,
-          timestamp: new Date().toISOString()
-        }
-      })
-      .eq('id', datasetId);
-    
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error updating dataset with error:', error);
-  }
+  
+  return {
+    data: allResults,
+    apiCalls,
+    averageResponseTime: apiCalls > 0 ? totalResponseTime / apiCalls : 0
+  };
 }
 
 // Main handler for the function
@@ -1061,120 +723,439 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
   
+  const requestStart = Date.now();
   const requestId = crypto.randomUUID();
-  const startTime = Date.now();
   
   try {
-    const params = await req.json() as ExtractParams;
+    const params = await req.json() as ExtractionParams;
     
-    // Validate required parameters
-    if (!params.sourceId || !params.datasetId || !params.queryType || !params.queryName) {
+    if (!params.sourceId || !params.queryType) {
       return new Response(
         JSON.stringify({ 
-          error: 'Missing required parameters',
-          requestId,
-          timestamp: new Date().toISOString() 
+          success: false, 
+          error: 'Missing required parameters: sourceId and queryType are required',
+          requestId
         }),
         { 
+          status: 400, 
           headers: { 
             ...corsHeaders, 
             'Content-Type': 'application/json',
             'X-Request-ID': requestId
-          }, 
-          status: 400 
+          } 
         }
       );
     }
     
-    // Verify authentication
+    // Initialize Supabase client
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // Validate authentication token
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    let userId = '';
+    
+    if (authHeader) {
+      // Extract user ID from the JWT
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data } = await supabase.auth.getUser(token);
+        userId = data.user?.id || '';
+      } catch (e) {
+        console.error('Error getting user ID from token:', e);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Invalid authentication token',
+            requestId 
+          }),
+          { 
+            status: 401, 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'X-Request-ID': requestId
+            } 
+          }
+        );
+      }
+    } else {
       return new Response(
         JSON.stringify({ 
+          success: false, 
           error: 'Authentication required',
-          requestId,
-          timestamp: new Date().toISOString()
+          requestId 
         }),
         { 
+          status: 401, 
           headers: { 
             ...corsHeaders, 
             'Content-Type': 'application/json',
             'X-Request-ID': requestId
-          }, 
-          status: 401 
+          } 
         }
       );
     }
     
-    // Execute extraction with robust error handling
+    // Get source info
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .select('*')
+      .eq('id', params.sourceId)
+      .single();
+    
+    if (sourceError) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Error fetching source: ${sourceError.message}`,
+          requestId 
+        }),
+        { 
+          status: 500, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId
+          } 
+        }
+      );
+    }
+    
+    if (!source) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Source not found',
+          requestId 
+        }),
+        { 
+          status: 404, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId
+          } 
+        }
+      );
+    }
+    
+    // Ensure source belongs to the authenticated user
+    if (source.user_id !== userId) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'You do not have permission to access this source',
+          requestId 
+        }),
+        { 
+          status: 403, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId
+          } 
+        }
+      );
+    }
+    
+    // Ensure source is Shopify and connected
+    if (source.type !== 'shopify') {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Source must be a Shopify store',
+          requestId 
+        }),
+        { 
+          status: 400, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId
+          } 
+        }
+      );
+    }
+    
+    if (source.connection_status !== 'connected') {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Shopify source is not connected',
+          requestId 
+        }),
+        { 
+          status: 400, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId
+          } 
+        }
+      );
+    }
+    
+    // Get the actual access token using the RPC function
+    const { data: tokenData, error: tokenError } = await supabase.rpc(
+      'decrypt_access_token',
+      { encrypted_token: source.access_token, user_uuid: source.user_id }
+    );
+    
+    if (tokenError) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Error decrypting access token: ${tokenError.message}`,
+          requestId 
+        }),
+        { 
+          status: 500, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId
+          } 
+        }
+      );
+    }
+    
+    if (!tokenData) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Could not decrypt access token',
+          requestId 
+        }),
+        { 
+          status: 500, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId
+          } 
+        }
+      );
+    }
+    
+    const shopDomain = source.store_name || '';
+    const accessToken = tokenData;
+    const apiVersion = source.api_version || '2024-04';
+    
+    // Create extraction log if not provided
+    let extractionLogId = params.extractionLogId;
+    
+    if (!params.sampleOnly && !extractionLogId) {
+      const { data: logData, error: logError } = await supabase
+        .from('extraction_logs')
+        .insert({
+          dataset_id: params.datasetId,
+          status: 'running',
+          metadata: {
+            query_type: params.queryType,
+            query_name: params.queryName,
+            query_details: params.queryDetails,
+            timestamp: new Date().toISOString()
+          }
+        })
+        .select()
+        .single();
+        
+      if (logError) {
+        console.error('Error creating extraction log:', logError);
+      } else {
+        extractionLogId = logData.id;
+      }
+    }
+    
     try {
-      const result = await extractShopifyData(params);
+      // Execute query with pagination
+      const { data, apiCalls, averageResponseTime } = await executeQueryWithPagination(
+        shopDomain,
+        accessToken,
+        apiVersion,
+        params.queryName,
+        params.queryDetails,
+        params.sampleOnly,
+        extractionLogId
+      );
       
-      // Add execution metrics to response
-      const executionTime = Date.now() - startTime;
+      // If not just a sample, update the dataset with the results
+      if (!params.sampleOnly) {
+        const { error: updateError } = await supabase
+          .from('datasets')
+          .update({
+            data: data,
+            status: 'completed',
+            record_count: data.length,
+            data_updated_at: new Date().toISOString(),
+            extraction_progress: 100,
+            last_completed_run: new Date().toISOString(),
+            last_run_duration: Date.now() - requestStart,
+            error_message: null
+          })
+          .eq('id', params.datasetId);
+          
+        if (updateError) {
+          console.error('Error updating dataset:', updateError);
+        }
+        
+        // Update extraction log
+        if (extractionLogId) {
+          await supabase
+            .from('extraction_logs')
+            .update({
+              end_time: new Date().toISOString(),
+              status: 'completed',
+              records_processed: data.length,
+              total_records: data.length,
+              api_calls: apiCalls,
+              average_response_time: averageResponseTime,
+              metadata: {
+                query_type: params.queryType,
+                query_name: params.queryName,
+                execution_time_ms: Date.now() - requestStart,
+                record_count: data.length,
+                api_calls: apiCalls,
+                timestamp: new Date().toISOString()
+              }
+            })
+            .eq('id', extractionLogId);
+        }
+      }
       
+      // Create audit log
+      await supabase
+        .from('audit_logs')
+        .insert({
+          table_name: 'extraction_logs',
+          record_id: params.datasetId,
+          action: 'EXTRACTION_COMPLETE',
+          user_id: userId,
+          new_data: {
+            execution_time_ms: Date.now() - requestStart,
+            records_processed: data.length,
+            api_calls: apiCalls,
+            average_response_time: averageResponseTime,
+            sample_only: params.sampleOnly,
+            timestamp: new Date().toISOString(),
+            request_id: requestId
+          },
+        });
+      
+      // Return success response
       return new Response(
         JSON.stringify({
-          ...result,
-          requestId,
-          executionTime
-        }),
+          success: true,
+          sample: params.sampleOnly ? data.slice(0, 10) : undefined,
+          recordCount: data.length,
+          extractionTime: Date.now() - requestStart,
+          apiCalls,
+          averageResponseTime,
+          requestId
+        } as ExtractionResult),
         { 
           headers: { 
             ...corsHeaders, 
             'Content-Type': 'application/json',
             'X-Request-ID': requestId,
-            'X-Execution-Time': executionTime.toString()
+            'X-Execution-Time': (Date.now() - requestStart).toString()
           } 
         }
       );
     } catch (error) {
-      // Determine appropriate status code
-      const statusCode = error.message?.includes('Rate limit') ? 429 : 
-                        error.message?.includes('not found') ? 404 : 
-                        error.message?.includes('Authentication') ? 401 : 
-                        error.message?.includes('Circuit breaker') ? 503 : 
-                        error.message?.includes('Another extraction') ? 409 : 500;
+      console.error('Error executing extraction:', error);
       
-      // Include retry header if rate limited
-      const headers = { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json',
-        'X-Request-ID': requestId
-      };
-      
-      if (error.retryAfter) {
-        headers['Retry-After'] = error.retryAfter.toString();
+      // Update dataset with error if not sample
+      if (!params.sampleOnly) {
+        await supabase
+          .from('datasets')
+          .update({
+            status: 'failed',
+            error_message: error.message || 'Unknown error during extraction',
+            last_run_duration: Date.now() - requestStart,
+            last_error_details: {
+              error: error.message || 'Unknown error',
+              timestamp: new Date().toISOString(),
+              stack: error.stack,
+              request_id: requestId
+            }
+          })
+          .eq('id', params.datasetId);
+          
+        // Update extraction log
+        if (extractionLogId) {
+          await supabase
+            .from('extraction_logs')
+            .update({
+              end_time: new Date().toISOString(),
+              status: 'failed',
+              error_message: error.message || 'Unknown error',
+              metadata: {
+                error: error.message || 'Unknown error',
+                timestamp: new Date().toISOString(),
+                request_id: requestId
+              }
+            })
+            .eq('id', extractionLogId);
+        }
       }
+      
+      // Create audit log for error
+      await supabase
+        .from('audit_logs')
+        .insert({
+          table_name: 'extraction_logs',
+          record_id: params.datasetId,
+          action: 'EXTRACTION_ERROR',
+          user_id: userId,
+          new_data: {
+            error: error.message || 'Unknown error',
+            execution_time_ms: Date.now() - requestStart,
+            sample_only: params.sampleOnly,
+            timestamp: new Date().toISOString(),
+            request_id: requestId
+          },
+        });
       
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: error instanceof Error ? error.message : String(error),
-          errorCode: statusCode,
           requestId,
-          timestamp: new Date().toISOString(),
-          executionTime: Date.now() - startTime
+          executionTime: Date.now() - requestStart
         }),
-        { status: statusCode, headers }
+        { 
+          status: 500, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
+            'X-Execution-Time': (Date.now() - requestStart).toString()
+          } 
+        }
       );
     }
   } catch (error) {
     // Handle request parsing errors
+    console.error('Request parsing error:', error);
+    
     return new Response(
       JSON.stringify({ 
+        success: false, 
         error: 'Invalid request format',
         details: error instanceof Error ? error.message : String(error),
         requestId,
-        timestamp: new Date().toISOString()
+        executionTime: Date.now() - requestStart
       }),
       { 
+        status: 400, 
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json',
           'X-Request-ID': requestId
-        }, 
-        status: 400 
+        } 
       }
     );
   }

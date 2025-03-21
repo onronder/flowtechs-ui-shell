@@ -43,12 +43,10 @@ export interface QueryResult {
   success: boolean;
   data: any;
   error?: string;
-  rateLimitInfo?: {
-    available: number;
-    maximum: number;
-    restoreRate: number;
-    requestCost: number;
-  };
+  rateLimitInfo?: RateLimitInfo;
+  fromCache?: boolean;
+  executionTime?: number;
+  requestId?: string;
 }
 
 // Define the JSON type helper for query details
@@ -88,7 +86,7 @@ export interface ShopifyCursorPagination {
   endCursor?: string;
 }
 
-export interface ShopifyRateLimitInfo {
+export interface RateLimitInfo {
   available: number;
   maximum: number;
   restoreRate: number;
@@ -102,7 +100,7 @@ export interface ShopifyQueryMetrics {
   executionTime: number;
   timestamp: string;
   statusCode: number;
-  rateLimitInfo?: ShopifyRateLimitInfo;
+  rateLimitInfo?: RateLimitInfo;
 }
 
 export interface ShopifyExtractOptions {
@@ -115,4 +113,58 @@ export interface ShopifyExtractOptions {
   maxRecords?: number;
   useCache?: boolean;
   cacheTTL?: number;
+}
+
+export interface SchemaValidationResult {
+  isValid: boolean;
+  errors?: string[];
+  warnings?: string[];
+  deprecations?: {
+    type: string;
+    field: string;
+    reason: string;
+  }[];
+}
+
+export interface SchemaDiff {
+  apiVersions: {
+    old: string;
+    new: string;
+  };
+  newTypes: string[];
+  removedTypes: string[];
+  changedTypes: {
+    typeName: string;
+    addedFields: string[];
+    removedFields: string[];
+    changedFields: {
+      fieldName: string;
+      oldType: string;
+      newType: string;
+      changes: string[];
+    }[];
+  }[];
+  severity: 'info' | 'warning' | 'critical';
+}
+
+export interface DistributedLock {
+  lockKey: string;
+  lockId: string;
+  acquiredAt: string;
+  expiresAt: string;
+}
+
+export interface ExtractionMetrics {
+  recordsProcessed: number;
+  totalRecords?: number;
+  apiCalls: number;
+  averageResponseTime: number;
+  startTime: string;
+  endTime?: string;
+  status: 'running' | 'completed' | 'failed';
+  error?: string;
+  requestsPerSecond?: number;
+  recordsPerSecond?: number;
+  rateLimitRemaining?: number;
+  rateLimitUsed?: number;
 }
