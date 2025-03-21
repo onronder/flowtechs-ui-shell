@@ -1,13 +1,18 @@
 
-import { corsHeaders, handleCors, extractUserId } from './utils.ts';
+import { corsHeaders } from './utils.ts';
 import { validateSourceData } from './validators.ts';
 import { saveShopifySource } from './sourceService.ts';
+import { extractUserId } from './utils.ts';
 
 // Main request handler
 Deno.serve(async (req) => {
   // Handle CORS preflight
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
+    });
+  }
   
   try {
     console.log('Received request to save-shopify-source');
@@ -59,11 +64,6 @@ Deno.serve(async (req) => {
     
     // Save the source data
     try {
-      // Make sure we have a user ID before saving
-      if (!userId) {
-        throw new Error('User ID is required but was not found');
-      }
-      
       const result = await saveShopifySource(sourceData, userId);
       
       console.log('Source saved successfully:', { id: result.source?.id });
