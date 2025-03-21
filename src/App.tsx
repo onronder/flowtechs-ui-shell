@@ -1,19 +1,19 @@
 
 import { Routes, Route } from 'react-router-dom';
-import { Index } from '@/pages/Index';
+import Index from '@/pages/Index';
 import DashboardLayout from '@/layouts/DashboardLayout';
-import { Dashboard } from '@/pages/Dashboard';
-import { Help } from '@/pages/Help';
-import { NotFound } from '@/pages/NotFound';
-import { Sources } from '@/pages/Sources';
-import { Datasets } from '@/pages/Datasets';
-import { Destinations } from '@/pages/Destinations';
-import { AIInsights } from '@/pages/AIInsights';
-import { Transformations } from '@/pages/Transformations';
-import { Jobs } from '@/pages/Jobs';
-import { DataStorage } from '@/pages/DataStorage';
-import { Settings } from '@/pages/Settings';
-import { CustomQuery } from '@/pages/CustomQuery';
+import Dashboard from '@/pages/Dashboard';
+import Help from '@/pages/Help';
+import NotFound from '@/pages/NotFound';
+import Sources from '@/pages/Sources';
+import Datasets from '@/pages/Datasets';
+import Destinations from '@/pages/Destinations';
+import AIInsights from '@/pages/AIInsights';
+import Transformations from '@/pages/Transformations';
+import Jobs from '@/pages/Jobs';
+import DataStorage from '@/pages/DataStorage';
+import Settings from '@/pages/Settings';
+import CustomQuery from '@/pages/CustomQuery';
 import EnterpriseVisualization from '@/pages/EnterpriseVisualization';
 import ShopifyTestingPlan from '@/pages/ShopifyTestingPlan';
 
