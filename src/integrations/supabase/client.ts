@@ -47,9 +47,8 @@ export type Dataset = {
   last_completed_run: string | null;
   last_run_duration: number | null;
   error_message: string | null;
-  // New fields added to match our database schema
-  extraction_progress: number | null;
-  extraction_settings: {
+  // Make extraction_settings properly typed but optional
+  extraction_settings?: {
     batch_size: number;
     max_retries: number;
     throttle_delay_ms: number;
@@ -60,7 +59,9 @@ export type Dataset = {
     cache_enabled: boolean;
     field_optimization: boolean;
   } | null;
+  extraction_progress: number | null;
   last_error_details: Record<string, any> | null;
+  // Make performance_metrics optional
   performance_metrics?: {
     records_per_second: number;
     api_calls_per_record: number;

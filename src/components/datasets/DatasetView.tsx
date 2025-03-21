@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase, Dataset } from "@/integrations/supabase/client";
@@ -54,10 +53,7 @@ const DatasetView = () => {
         },
         (payload) => {
           const updatedData = payload.new as any;
-          setDataset({
-            ...updatedData,
-            performance_metrics: updatedData.performance_metrics || null
-          } as Dataset);
+          setDataset(convertDatabaseItemToDataset(updatedData));
         }
       )
       .subscribe();
@@ -66,6 +62,24 @@ const DatasetView = () => {
       supabase.removeChannel(channel);
     };
   }, [id]);
+  
+  const convertDatabaseItemToDataset = (item: any): Dataset => {
+    return {
+      ...item,
+      extraction_settings: item.extraction_settings ? {
+        batch_size: item.extraction_settings.batch_size || 100,
+        max_retries: item.extraction_settings.max_retries || 3,
+        throttle_delay_ms: item.extraction_settings.throttle_delay_ms || 1000,
+        circuit_breaker_threshold: item.extraction_settings.circuit_breaker_threshold || 5,
+        timeout_seconds: item.extraction_settings.timeout_seconds || 30,
+        concurrent_requests: item.extraction_settings.concurrent_requests || 2,
+        deduplication_enabled: item.extraction_settings.deduplication_enabled || false,
+        cache_enabled: item.extraction_settings.cache_enabled || false,
+        field_optimization: item.extraction_settings.field_optimization || false
+      } : null,
+      performance_metrics: null
+    };
+  };
   
   const fetchDataset = async () => {
     if (!id) return;
@@ -79,11 +93,7 @@ const DatasetView = () => {
         
       if (error) throw error;
       
-      // Properly handle the optional performance_metrics field
-      setDataset({
-        ...data,
-        performance_metrics: data.performance_metrics || null
-      } as Dataset);
+      setDataset(convertDatabaseItemToDataset(data));
     } catch (error) {
       console.error('Error fetching dataset:', error);
       toast({
@@ -226,7 +236,7 @@ const DatasetView = () => {
       // Calculate progress (rough estimate)
       const progress = Math.min(
         Math.floor((cursor.length / (cursor.length + response.data.nextCursor?.length || 1)) * 100),
-        95 // Cap at 95% until fully complete
+        95
       );
       
       // Update progress
