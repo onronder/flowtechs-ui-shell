@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { QueryTemplate, QueryVariable } from "../types";
+import { QueryTemplate, QueryVariable, QueryDetailsJson } from "../types";
 import { Json } from "@/integrations/supabase/types";
 
 export const fetchTemplates = async (sourceId: string): Promise<QueryTemplate[]> => {
@@ -17,17 +17,24 @@ export const fetchTemplates = async (sourceId: string): Promise<QueryTemplate[]>
       return [];
     }
 
-    return (data || []).map(template => ({
-      id: template.id,
-      name: template.name,
-      description: template.description || '',
-      query: template.query_details?.query || '',
-      variables: template.query_details?.variables || [],
-      source_id: sourceId, // Changed from sourceId to source_id to match QueryTemplate interface
-      created_at: template.created_at,
-      updated_at: template.updated_at,
-      complexity: template.query_details?.complexity || 0
-    }));
+    return (data || []).map(template => {
+      // Safely cast query_details to the correct type
+      const details = template.query_details as QueryDetailsJson | null;
+      
+      return {
+        id: template.id,
+        name: template.name,
+        description: template.description || '',
+        query: details?.query || '',
+        variables: details?.variables || [],
+        source_id: sourceId, // Changed from sourceId to source_id to match QueryTemplate interface
+        created_at: template.created_at,
+        updated_at: template.updated_at,
+        complexity: details?.complexity || 0,
+        execution_count: details?.execution_count,
+        average_execution_time: details?.average_execution_time
+      };
+    });
   } catch (error) {
     console.error("Error parsing templates:", error);
     return [];
@@ -60,7 +67,7 @@ export const saveTemplateToSupabase = async (
         variables: safeVariables,
         complexity,
         sourceId
-      }
+      } as Json // Cast to Json to satisfy the type system
     };
 
     const { data: savedTemplate, error } = await supabase
@@ -75,16 +82,18 @@ export const saveTemplateToSupabase = async (
     }
 
     // Convert the saved template to our expected format
+    const details = savedTemplate.query_details as QueryDetailsJson;
+    
     return {
       id: savedTemplate.id,
       name: savedTemplate.name,
       description: savedTemplate.description || '',
-      query: savedTemplate.query_details.query,
-      variables: savedTemplate.query_details.variables,
+      query: details.query,
+      variables: details.variables,
       source_id: sourceId, // Changed from sourceId to source_id
       created_at: savedTemplate.created_at,
       updated_at: savedTemplate.updated_at,
-      complexity: savedTemplate.query_details.complexity
+      complexity: details.complexity
     };
   } catch (error) {
     console.error("Error saving template:", error);
