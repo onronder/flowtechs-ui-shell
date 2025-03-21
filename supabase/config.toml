@@ -61,5 +61,4 @@ enable_confirmations = true
 template = 'Your code is {{ .Code }} '
 
 [functions]
-[functions.enabled]
-"*" = true
+enabled = true
