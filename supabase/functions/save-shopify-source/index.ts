@@ -13,6 +13,7 @@ import {
 async function saveShopifySource(data: any, userId: string) {
   try {
     console.log('Saving Shopify source with data:', { ...data, access_token: '***REDACTED***' });
+    console.log('Using user ID for save operation:', userId);
     
     // Check if this is an update or a new source
     const isUpdate = !!data.id;
@@ -75,6 +76,11 @@ async function saveShopifySource(data: any, userId: string) {
     } else {
       // Create new source with user ID
       console.log('Creating new source for user:', userId);
+      
+      if (!userId) {
+        throw new Error('User ID is required to create a new source');
+      }
+      
       const { data: insertResult, error } = await supabase
         .from('sources')
         .insert({
@@ -183,6 +189,11 @@ Deno.serve(async (req) => {
     
     // Save the source data
     try {
+      // Make sure we have a user ID before saving
+      if (!userId) {
+        throw new Error('User ID is required but was not found');
+      }
+      
       const result = await saveShopifySource(sourceData, userId);
       
       console.log('Source saved successfully:', { id: result.source?.id });
