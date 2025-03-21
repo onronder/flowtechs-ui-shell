@@ -348,6 +348,33 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          first_name?: string | null
+          id: string
+          last_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       schema_diffs: {
         Row: {
           acknowledged: boolean
@@ -502,6 +529,10 @@ export type Database = {
           source_id: string
         }
         Returns: string
+      }
+      is_authenticated: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
       release_lock: {
         Args: {

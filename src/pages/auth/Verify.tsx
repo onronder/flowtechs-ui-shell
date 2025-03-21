@@ -1,26 +1,50 @@
 
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from "sonner";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 const Verify = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    // Simulate loading
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsVerified(true);
-      toast.success("Email verified successfully");
-    }, 1000);
+  useEffect(() => {
+    // Check if there's an email in local storage (stored during signup)
+    const currentUser = supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.email) {
+        setEmail(data.user.email);
+      }
+    });
+  }, []);
+
+  const handleResendEmail = async () => {
+    if (!email) {
+      setError("No email address found. Please try signing up again.");
+      return;
+    }
+
+    setIsResending(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast.success("Verification email resent");
+    } catch (error: any) {
+      setError(error.message || "Failed to resend verification email");
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
@@ -33,39 +57,55 @@ const Verify = () => {
         </div>
         <CardTitle className="text-2xl text-center">Verify your email</CardTitle>
         <CardDescription className="text-center">
-          Enter the verification code sent to your email
+          We've sent a verification link to {email || "your email"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!isVerified ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="code">Verification code</Label>
-              <Input id="code" placeholder="Enter 6-digit code" required />
-            </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Verifying..." : "Verify email"}
-            </Button>
-          </form>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-md bg-muted p-4 text-sm">
-              Your email has been verified successfully.
-            </div>
-            <Button className="w-full" asChild>
-              <Link to="/auth/signin">Continue to sign in</Link>
-            </Button>
+        {error && (
+          <div className="bg-destructive/15 p-3 rounded-md flex items-start gap-2 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <p>{error}</p>
           </div>
         )}
+        
+        <div className="space-y-4">
+          <div className="rounded-md bg-muted p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium">Check your email</p>
+                <p className="text-sm text-muted-foreground">Click the verification link in the email we sent you</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium">After verification</p>
+                <p className="text-sm text-muted-foreground">You'll be able to sign in to your account</p>
+              </div>
+            </div>
+          </div>
+          
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handleResendEmail}
+            disabled={isResending}
+          >
+            {isResending ? "Sending..." : "Resend verification email"}
+          </Button>
+          
+          <Button className="w-full" asChild>
+            <Link to="/auth/signin">Back to sign in</Link>
+          </Button>
+        </div>
       </CardContent>
       <CardFooter className="flex justify-center">
         <div className="text-sm text-muted-foreground">
-          Didn't receive a code?{" "}
-          <Link to="#" className="text-primary hover:underline" onClick={(e) => {
-            e.preventDefault();
-            toast.success("Verification code resent");
-          }}>
-            Resend code
+          Need help?{" "}
+          <Link to="/help" className="text-primary hover:underline">
+            Contact support
           </Link>
         </div>
       </CardFooter>
