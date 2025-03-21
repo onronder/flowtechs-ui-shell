@@ -138,3 +138,33 @@ export function convertToDataset(data: any): Dataset {
     performance_metrics: data.performance_metrics || null
   };
 }
+
+// Get rate limit info from a source
+export async function getRateLimitInfo(sourceId: string): Promise<RateLimitInfo | null> {
+  try {
+    // Fetch the most recent API metrics for the source
+    const { data, error } = await supabase
+      .from('api_metrics')
+      .select('rate_limit_available, rate_limit_maximum, operation_type, created_at')
+      .eq('source_id', sourceId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+      
+    if (error || !data || data.length === 0) {
+      return null;
+    }
+    
+    // Find the most relevant rate limit information
+    const latestMetric = data[0];
+    
+    return {
+      available: latestMetric.rate_limit_available || 0,
+      maximum: latestMetric.rate_limit_maximum || 0,
+      restoreRate: 50, // Default restore rate (points per second)
+      requestCost: 1, // Default cost per request
+    };
+  } catch (error) {
+    console.error('Error fetching rate limit info:', error);
+    return null;
+  }
+}
