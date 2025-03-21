@@ -79,15 +79,19 @@ async function saveShopifySource(data: any, userId: string) {
       console.log('Source updated successfully');
       result = updateResult;
       
-      // Log the update
-      await logAuditEvent(
-        userId,
-        'sources',
-        data.id,
-        'UPDATE',
-        'Updated Shopify source credentials',
-        { name: data.name }
-      );
+      // Only log the audit event if userId is provided
+      if (userId) {
+        await logAuditEvent(
+          userId,
+          'sources',
+          data.id,
+          'UPDATE',
+          'Updated Shopify source credentials',
+          { name: data.name }
+        );
+      } else {
+        console.warn('No user ID provided for audit logging during update');
+      }
     } else {
       // Create new source with user ID
       console.log('Creating new source for user:', userId);
@@ -108,15 +112,19 @@ async function saveShopifySource(data: any, userId: string) {
       console.log('Source created successfully with ID:', insertResult?.id);
       result = insertResult;
       
-      // Log the creation
-      await logAuditEvent(
-        userId,
-        'sources',
-        result.id,
-        'INSERT',
-        'Created new Shopify source',
-        { name: data.name }
-      );
+      // Only log the audit event if userId is provided
+      if (userId) {
+        await logAuditEvent(
+          userId,
+          'sources',
+          result.id,
+          'INSERT',
+          'Created new Shopify source',
+          { name: data.name }
+        );
+      } else {
+        console.warn('No user ID provided for audit logging during insert');
+      }
     }
     
     // Test the connection immediately after saving
@@ -185,6 +193,14 @@ async function logAuditEvent(
   metadata: Record<string, any> = {}
 ) {
   try {
+    // Skip audit logging if no user ID is provided
+    if (!userId) {
+      console.warn('Skipping audit log creation: No user ID provided');
+      return;
+    }
+    
+    console.log(`Creating audit log: ${action} on ${tableName} for user ${userId}`);
+    
     // Create audit log entry
     const { error } = await supabase
       .from('audit_logs')
@@ -202,6 +218,8 @@ async function logAuditEvent(
     
     if (error) {
       console.error('Error creating audit log:', error);
+    } else {
+      console.log('Audit log created successfully');
     }
   } catch (error) {
     console.error('Error in logAuditEvent:', error);
@@ -235,18 +253,44 @@ Deno.serve(async (req) => {
       }
     }
     
-    // If no user ID from auth, check for user ID in the request body for development
+    // If no user ID from auth, check for user ID in the request body
     if (!userId) {
-      console.log('No user ID from auth token, looking for fallback user');
-      // For demos/dev, let's get the first user from the database
-      const { data: firstUser } = await supabase
-        .from('sources')
-        .select('user_id')
-        .limit(1)
-        .single();
-      
-      userId = firstUser?.user_id || '00000000-0000-0000-0000-000000000000';
-      console.log('Using fallback user ID:', userId);
+      try {
+        // Parse the request to check if user_id is in the body
+        const clonedReq = req.clone();
+        const body = await clonedReq.json();
+        
+        // Use user_id from request body if available
+        if (body && body.user_id) {
+          userId = body.user_id;
+          console.log('Using user ID from request body:', userId);
+        } else {
+          console.log('No user ID from auth token or request body, looking for fallback user');
+          
+          // For demos/dev, let's get the first user from the database
+          const { data: firstUser } = await supabase
+            .from('sources')
+            .select('user_id')
+            .limit(1)
+            .single();
+          
+          userId = firstUser?.user_id || '';
+          
+          if (!userId) {
+            // If still no userId, use a hardcoded ID for development only
+            userId = '00000000-0000-0000-0000-000000000000';
+            console.log('Using hardcoded user ID as last resort:', userId);
+          } else {
+            console.log('Using fallback user ID from database:', userId);
+          }
+        }
+      } catch (e) {
+        console.error('Error extracting user_id from request:', e);
+        
+        // Last resort fallback
+        userId = '00000000-0000-0000-0000-000000000000';
+        console.log('Using hardcoded user ID after error:', userId);
+      }
     }
     
     // Parse request body
