@@ -22,20 +22,24 @@ export const useSourceFormLogic = () => {
 
   // Check if Supabase is properly configured
   useEffect(() => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    // We're now using hardcoded values in the client, so we always consider it configured
+    setIsSupabaseConfigured(true);
     
-    const isConfigured = 
-      supabaseUrl && 
-      supabaseKey && 
-      !supabaseUrl.includes('placeholder') && 
-      !supabaseKey.includes('placeholder');
-    
-    setIsSupabaseConfigured(isConfigured);
-    
-    if (!isConfigured) {
-      setConnectionError('Supabase connection is not properly configured');
-    }
+    // Test the connection to make sure it works
+    (async () => {
+      try {
+        const { error } = await supabase.from('sources').select('count').limit(1);
+        if (error) {
+          console.error('Supabase connection test failed:', error);
+          setIsSupabaseConfigured(false);
+          setConnectionError('Unable to connect to Supabase. The API key may be incorrect or lacks sufficient permissions.');
+        }
+      } catch (error) {
+        console.error('Error testing Supabase connection:', error);
+        setIsSupabaseConfigured(false);
+        setConnectionError('Unable to connect to Supabase. Please check your network connection.');
+      }
+    })();
   }, []);
 
   const form = useForm<SourceFormValues>({

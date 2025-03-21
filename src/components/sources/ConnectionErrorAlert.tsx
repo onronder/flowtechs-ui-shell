@@ -25,9 +25,9 @@ const ConnectionErrorAlert = ({ error, supabaseConfigured }: ConnectionErrorAler
                 <li>Create a <code className="bg-red-100 dark:bg-red-900/40 px-1 py-0.5 rounded">.env</code> file in the root directory of your project</li>
                 <li>Add the following environment variables:
                   <pre className="bg-red-100 dark:bg-red-900/40 p-2 rounded mt-1 overflow-x-auto">
-                    <code>VITE_SUPABASE_URL=your_supabase_url</code>
+                    <code>VITE_SUPABASE_URL=https://bkhuqrzqbexmgpqbyiir.supabase.co</code>
                     <br />
-                    <code>VITE_SUPABASE_ANON_KEY=your_supabase_anon_key</code>
+                    <code>VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJraHVxcnpxYmV4bWdwcWJ5aWlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI1MDk2OTcsImV4cCI6MjA1ODA4NTY5N30.BjVmX_zVq0kcRjFA1rBBgdZm3jp6kt_0N3AisXDS5FY</code>
                   </pre>
                 </li>
                 <li>Restart your development server</li>
@@ -35,7 +35,7 @@ const ConnectionErrorAlert = ({ error, supabaseConfigured }: ConnectionErrorAler
             </div>
             
             <p className="text-sm text-muted-foreground">
-              You can find these values in your Supabase project dashboard under Project Settings &gt; API.
+              These values have been configured directly in the application for this session, but using environment variables is recommended for security and flexibility.
             </p>
           </div>
         ) : (
@@ -60,9 +60,9 @@ const ConnectionErrorAlert = ({ error, supabaseConfigured }: ConnectionErrorAler
             <Button
               variant="default"
               size="sm"
-              onClick={() => window.open('https://supabase.com/dashboard', '_blank')}
+              onClick={() => window.open('https://supabase.com/dashboard/project/bkhuqrzqbexmgpqbyiir/settings/api', '_blank')}
             >
-              Open Supabase Dashboard
+              Open Supabase API Settings
             </Button>
           )}
         </div>
