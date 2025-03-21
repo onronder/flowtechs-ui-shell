@@ -51,9 +51,9 @@ enable_signup = true
 double_confirm_changes = true
 enable_confirmations = true
 
+# Removing the content_path reference since the file doesn't exist
 [auth.email.template.invite]
 subject = 'You have been invited'
-content_path = 'email-templates/invite.html'
 
 [auth.sms]
 enable_signup = true
