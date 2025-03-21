@@ -61,4 +61,5 @@ enable_confirmations = true
 template = 'Your code is {{ .Code }} '
 
 [functions]
-verify_jwt = true
+enabled = true
+

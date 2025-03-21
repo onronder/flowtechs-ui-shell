@@ -118,8 +118,8 @@ const RateLimitMonitor: React.FC<RateLimitMonitorProps> = ({ sourceId, metrics }
         const predictedTime = new Date(now.getTime() + minutesFromNow * 60 * 1000);
         
         // Calculate predicted consumption and restoration
-        const consumed = avgConsumptionRate * predictedIntervalMinutes;
-        const restored = restorePerMinute * predictedIntervalMinutes;
+        const consumed = avgConsumptionRate * predictionIntervalMinutes;
+        const restored = restorePerMinute * predictionIntervalMinutes;
         
         // Update predicted available
         predictedAvailable = Math.min(

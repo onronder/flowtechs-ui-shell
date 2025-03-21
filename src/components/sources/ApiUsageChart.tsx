@@ -8,11 +8,19 @@ interface ApiUsageChartProps {
   metrics: any[];
 }
 
+interface ChartDataPoint {
+  date: string;
+  requestCount: number;
+  errorCount: number;
+  avgResponseTime: number;
+  totalTime: number;
+}
+
 const ApiUsageChart: React.FC<ApiUsageChartProps> = ({ metrics }) => {
   const [timePeriod, setTimePeriod] = useState('daily');
   
   // Process metrics data for different time periods
-  const processMetricsData = (period: string) => {
+  const processMetricsData = (period: string): ChartDataPoint[] => {
     if (!metrics.length) return [];
     
     // Sort metrics by timestamp
@@ -21,7 +29,7 @@ const ApiUsageChart: React.FC<ApiUsageChartProps> = ({ metrics }) => {
     );
     
     // Group by time period
-    const groupedData = {};
+    const groupedData: Record<string, ChartDataPoint> = {};
     
     sortedMetrics.forEach(metric => {
       const date = new Date(metric.created_at);
@@ -77,7 +85,7 @@ const ApiUsageChart: React.FC<ApiUsageChartProps> = ({ metrics }) => {
   const successRate = totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0;
   
   // Group metrics by operation type
-  const operationTypeData = {};
+  const operationTypeData: Record<string, number> = {};
   metrics.forEach(metric => {
     const type = metric.operation_type || 'unknown';
     if (!operationTypeData[type]) {
